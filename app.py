@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from datetime import datetime, timezone
-from flask import Flask, g
+from flask import Flask, g, current_app
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -19,7 +19,6 @@ login_manager.login_view = 'login'
 
 os.makedirs(app.instance_path, exist_ok=True)
 
-DATABASE = os.environ.get('DATABASE', app.config['DATABASE'])
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -67,8 +66,12 @@ CREATE TABLE IF NOT EXISTS insights_cache (
 
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE, detect_types=sqlite3.PARSE_DECLTYPES)
+        g.db = sqlite3.connect(
+            current_app.config['DATABASE'],
+            detect_types=sqlite3.PARSE_DECLTYPES
+        )
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
 @app.teardown_appcontext
@@ -78,7 +81,9 @@ def close_db(e=None):
         db.close()
 
 def init_db():
-    db = sqlite3.connect(DATABASE)
+    # Must be called within an app context
+    db = sqlite3.connect(current_app.config['DATABASE'])
+    db.execute("PRAGMA foreign_keys = ON")
     db.executescript(SCHEMA)
     db.commit()
     db.close()

@@ -1,7 +1,6 @@
 import os
 import pytest
 from app import app as flask_app, init_db
-import app as app_module
 
 @pytest.fixture
 def app(tmp_path):
@@ -11,8 +10,8 @@ def app(tmp_path):
         'DATABASE': db_path,
         'WTF_CSRF_ENABLED': False,
     })
-    app_module.DATABASE = db_path
-    init_db()
+    with flask_app.app_context():
+        init_db()
     yield flask_app
 
 @pytest.fixture
