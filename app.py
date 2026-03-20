@@ -1,11 +1,13 @@
 import os
 import re
 import sqlite3
+import tempfile
 from datetime import datetime, timezone
-from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request
+from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
+from parse_pdf import parse_metrics, ParseError
 
 load_dotenv()
 
@@ -161,9 +163,74 @@ def logout():
 def dashboard():
     return render_template('dashboard.html', metrics_json={}, months=[], has_data=False, month_list=[], sel_idx=0, selected=None, username=current_user.username)
 
-@app.route('/upload')
+ALLOWED_MIME = {'application/pdf'}
+
+METRIC_FIELDS = [
+    'patients',
+    'discharge_los_me', 'discharge_los_peers', 'discharge_los_pctile',
+    'admit_los_me', 'admit_los_peers', 'admit_los_pctile',
+    'admission_rate_me', 'admission_rate_peers', 'admission_rate_pctile',
+    'bed_request_me', 'bed_request_peers', 'bed_request_pctile',
+    'returns72_me', 'returns72_peers', 'returns72_pctile',
+    'readmits72_me', 'readmits72_peers', 'readmits72_pctile',
+    'rad_orders_me', 'rad_orders_peers', 'rad_orders_pctile',
+    'lab_orders_me', 'lab_orders_peers', 'lab_orders_pctile',
+    'pts_per_hour_me', 'pts_per_hour_peers', 'pts_per_hour_pctile',
+    'discharge_rate_me', 'discharge_rate_peers', 'discharge_rate_pctile',
+    'icu_rate_me', 'icu_rate_peers', 'icu_rate_pctile',
+    'rad_admit_me', 'rad_admit_peers',
+    'rad_disc_me', 'rad_disc_peers',
+    'esi1', 'esi2', 'esi3', 'esi4', 'esi5',
+    'billing_level3', 'billing_level4', 'billing_level5',
+]
+
+def _upsert_metrics(user_id, metrics):
+    db = get_db()
+    col_list = ', '.join(['user_id', 'month', 'year'] + METRIC_FIELDS)
+    placeholder_list = ', '.join(['?'] * (3 + len(METRIC_FIELDS)))
+    update_list = ', '.join(f'{f} = excluded.{f}' for f in METRIC_FIELDS)
+    values = [user_id, metrics['month'], metrics['year']] + [metrics.get(f) for f in METRIC_FIELDS]
+    db.execute(
+        f"""INSERT INTO monthly_metrics ({col_list}) VALUES ({placeholder_list})
+            ON CONFLICT(user_id, month, year) DO UPDATE SET {update_list}""",
+        values
+    )
+    db.execute('DELETE FROM insights_cache WHERE user_id = ?', (user_id,))
+    db.commit()
+
+@app.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_page():
+    if request.method == 'POST':
+        file = request.files.get('pdf')
+        if not file or file.filename == '':
+            flash('Please select a PDF file.', 'error')
+            return render_template('upload.html')
+        if file.mimetype not in ALLOWED_MIME:
+            flash('Only PDF files are accepted.', 'error')
+            return render_template('upload.html')
+        tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+        try:
+            file.save(tmp.name)
+            tmp.close()
+            metrics = parse_metrics(tmp.name)
+        except ParseError as e:
+            flash(str(e), 'error')
+            return render_template('upload.html')
+        except Exception:
+            flash('PDF appears to be password-protected or corrupted.', 'error')
+            return render_template('upload.html')
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+        if not metrics.get('month') or not metrics.get('year'):
+            flash('Could not determine month/year from this PDF.', 'error')
+            return render_template('upload.html')
+        _upsert_metrics(current_user.id, metrics)
+        flash(f"Month {metrics['month']}/{metrics['year']} uploaded successfully.", 'success')
+        return redirect(url_for('dashboard', month=metrics['month'], year=metrics['year']))
     return render_template('upload.html')
 
 if __name__ == '__main__':
