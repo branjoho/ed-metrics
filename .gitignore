@@ -1,0 +1,8 @@
+metrics.db
+.env
+__pycache__/
+*.pyc
+*.pdf
+tmp/
+.pytest_cache/
+instance/
