@@ -1,5 +1,17 @@
 {% extends 'base.html' %}
 {% block content %}
+{% if month_list %}
+<div style="padding: 12px 24px; border-bottom: 1px solid #e2e8f0; background: #fff;">
+  <select onchange="window.location='/dashboard?month='+this.value.split('/')[0]+'&year='+this.value.split('/')[1]"
+          style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+    {% for m in month_list %}
+    <option value="{{ m.month }}/{{ m.year }}" {% if loop.index0 == sel_idx %}selected{% endif %}>
+      {{ m.label }}
+    </option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
 {% if not has_data %}
 <div style="max-width:600px;margin:80px auto;text-align:center;padding:40px;">
   <h2>No data yet</h2>

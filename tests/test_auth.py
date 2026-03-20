@@ -14,9 +14,16 @@ def test_db_tables_exist(app):
     assert 'insights_cache' in tables
     db.close()
 
-def test_register_creates_user(client):
+def test_register_creates_user(client, app):
     rv = register_user(client)
     assert rv.status_code == 200
+    # Verify user exists in DB
+    import sqlite3
+    with app.app_context():
+        from app import get_db
+        db = get_db()
+        user = db.execute("SELECT username FROM users WHERE username='testuser'").fetchone()
+        assert user is not None
 
 def test_register_duplicate_username(client):
     register_user(client)

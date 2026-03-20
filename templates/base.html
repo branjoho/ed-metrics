@@ -11,17 +11,6 @@
 <nav>
   <span class="brand">ED Provider Dashboard</span>
   {% if current_user.is_authenticated %}
-    {% if month_list is defined and month_list and sel_idx is defined %}
-    <select onchange="window.location='/dashboard?month='+this.value.split('/')[0]+'&year='+this.value.split('/')[1]"
-            style="margin:0 12px;padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
-      {% for m in month_list %}
-      <option value="{{ m.month }}/{{ m.year }}"
-        {% if loop.index0 == sel_idx %}selected{% endif %}>
-        {{ m.label }}
-      </option>
-      {% endfor %}
-    </select>
-    {% endif %}
     <span class="nav-user">{{ current_user.username }}</span>
     <a href="{{ url_for('upload_page') }}">Upload PDF</a>
     <form method="post" action="{{ url_for('logout') }}" style="display:inline">
