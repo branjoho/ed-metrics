@@ -1,7 +1,212 @@
 {% extends 'base.html' %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface2: #f1f5f9;
+    --border: #e2e8f0;
+    --accent: #2563eb;
+    --accent2: #7c3aed;
+    --green: #16a34a;
+    --yellow: #d97706;
+    --red: #dc2626;
+    --text: #1e293b;
+    --muted: #64748b;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+
+  /* GOALS BUTTON IN NAV */
+  .goals-nav-btn {
+    margin-left: 12px; display: flex; align-items: center; gap: 6px;
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 7px 14px; font-size: 13px; font-weight: 600; font-family: var(--font);
+    cursor: pointer; transition: background .15s;
+  }
+  .goals-nav-btn:hover { background: #1d4ed8; }
+  .goals-nav-btn svg { flex-shrink: 0; }
+
+  /* LAYOUT */
+  main { max-width: 1300px; margin: 0 auto; padding: 32px 24px 80px; }
+  section { margin-bottom: 52px; scroll-margin-top: 68px; }
+  h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  h2 .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--surface2); color: var(--muted); }
+
+  /* PAGE HEADER */
+  .page-header { margin-bottom: 36px; }
+  .page-header h1 { font-size: 28px; font-weight: 800; letter-spacing: -.5px; }
+  .page-header p { color: var(--muted); margin-top: 4px; font-size: 14px; }
+  .page-header .range-badge {
+    display: inline-block; margin-top: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 13px; font-size: 13px; color: var(--muted);
+  }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .1s;
+  }
+  .kpi-card:hover { border-color: #93c5fd; box-shadow: 0 4px 14px rgba(37,99,235,0.12); transform: translateY(-1px); }
+  .kpi-card:active { transform: translateY(0); }
+  @keyframes cardFlash { 0%,100%{box-shadow:0 1px 3px rgba(0,0,0,0.05)} 30%{box-shadow:0 0 0 3px rgba(37,99,235,0.5),0 4px 16px rgba(37,99,235,0.2)} }
+  .chart-card.flash { animation: cardFlash 1s ease; }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+    background: var(--color, var(--accent));
+  }
+  .kpi-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-value { font-size: 30px; font-weight: 800; margin: 6px 0 4px; letter-spacing: -1px; }
+  .kpi-sub { font-size: 12px; color: var(--muted); }
+  .kpi-pct { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-top: 8px; display: inline-block; }
+  .pct-good { background: #dcfce7; color: var(--green); }
+  .pct-mid  { background: #fef9c3; color: var(--yellow); }
+  .pct-bad  { background: #fee2e2; color: var(--red); }
+  .kpi-goal-badge { font-size: 11px; font-weight: 600; margin-top: 6px; display: block; color: var(--muted); }
+  .kpi-goal-badge.on-track { color: var(--green); }
+  .kpi-goal-badge.off-track { color: var(--red); }
+
+  /* CHART GRID */
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 20px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; display: flex; flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .chart-card.full { grid-column: 1 / -1; }
+
+  /* CARD HEADER */
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .card-header-text { flex: 1; min-width: 0; }
+  .chart-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .chart-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* INSIGHT BUTTON */
+  .insight-btn {
+    flex-shrink: 0; display: flex; align-items: center; gap: 5px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 10px; cursor: pointer;
+    color: var(--muted); font-size: 12px; font-weight: 600;
+    font-family: var(--font); transition: border-color .15s, color .15s, background .15s;
+    white-space: nowrap;
+  }
+  .insight-btn:hover { border-color: var(--accent); color: var(--text); background: #eff6ff; }
+  .insight-btn.open { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+  .insight-btn .sev-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .insight-btn .chevron { width: 12px; height: 12px; transition: transform .22s; display: flex; align-items: center; }
+  .insight-btn.open .chevron { transform: rotate(180deg); }
+
+  /* LEGEND */
+  .legend { display: flex; gap: 16px; margin: 10px 0 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .legend-line { width: 20px; height: 2px; }
+
+  /* CHART WRAP */
+  .chart-wrap { position: relative; height: 220px; flex-shrink: 0; }
+  .chart-wrap.tall { height: 280px; }
+
+  /* INSIGHT DRAWER */
+  .insight-drawer { overflow: hidden; max-height: 0; transition: max-height .3s ease, opacity .25s, margin-top .25s; opacity: 0; margin-top: 0; }
+  .insight-drawer.open { max-height: 700px; opacity: 1; margin-top: 14px; }
+  .insight-inner { border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 11px; }
+  .insight-item { display: flex; gap: 10px; align-items: flex-start; }
+  .insight-sev { flex-shrink: 0; margin-top: 5px; width: 8px; height: 8px; border-radius: 50%; }
+  .sev-alert { background: var(--red); }
+  .sev-warn  { background: var(--yellow); }
+  .sev-good  { background: var(--green); }
+  .sev-neutral { background: #cbd5e1; }
+  .insight-text { font-size: 13px; color: var(--muted); line-height: 1.65; }
+  .insight-text strong { color: var(--text); }
+  .insight-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+  .itag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 7px; border-radius: 99px; }
+  .itag-trend  { background: #dbeafe; color: #1d4ed8; }
+  .itag-bench  { background: #ede9fe; color: #6d28d9; }
+  .itag-pos    { background: #dcfce7; color: var(--green); }
+  .itag-safety { background: #fee2e2; color: var(--red); }
+
+  /* PERCENTILE TABLE */
+  .pct-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pct-table th { color: var(--muted); font-weight: 600; text-align: left; padding: 7px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
+  .pct-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  .pct-table tr:last-child td { border-bottom: none; }
+
+  /* DATA NOTICE */
+  .data-notice {
+    background: #fefce8; border: 1px solid #fde68a; border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #92400e; line-height: 1.7;
+  }
+  .data-notice strong { color: #78350f; }
+
+  /* GOAL PANEL */
+  .goals-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 200;
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .goals-overlay.open { opacity: 1; pointer-events: all; }
+  .goals-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 380px; z-index: 201;
+    background: var(--surface); border-left: 1px solid var(--border);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform .28s ease;
+  }
+  .goals-panel.open { transform: translateX(0); }
+  .goals-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .goals-header-title { font-size: 17px; font-weight: 700; }
+  .goals-close {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-size: 20px; line-height: 1; padding: 4px; border-radius: 4px;
+    transition: color .15s; font-family: var(--font);
+  }
+  .goals-close:hover { color: var(--text); }
+  .goals-desc { padding: 14px 24px 4px; font-size: 13px; color: var(--muted); line-height: 1.6; flex-shrink: 0; }
+  .goals-body { flex: 1; overflow-y: auto; padding: 12px 24px; }
+  .goal-row { margin-bottom: 18px; }
+  .goal-row-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: baseline; }
+  .goal-row-hint { font-size: 11px; font-weight: 400; color: var(--muted); }
+  .goal-input-wrap { display: flex; align-items: center; gap: 8px; }
+  .goal-input {
+    flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px;
+    font-size: 14px; font-weight: 600; font-family: var(--font); color: var(--text);
+    background: var(--bg); transition: border-color .15s;
+    -moz-appearance: textfield;
+  }
+  .goal-input:focus { outline: none; border-color: var(--accent); }
+  .goal-unit { font-size: 13px; color: var(--muted); font-weight: 500; width: 28px; }
+  .goal-status { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+  .goal-status.on-track { background: #dcfce7; color: var(--green); }
+  .goal-status.off-track { background: #fee2e2; color: var(--red); }
+  .goal-status.not-set { background: var(--surface2); color: var(--muted); }
+  .goals-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-shrink: 0; }
+  .goals-save { flex: 1; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; font-family: var(--font); cursor: pointer; transition: background .15s; }
+  .goals-save:hover { background: #1d4ed8; }
+  .goals-clear { padding: 10px 16px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; transition: color .15s; }
+  .goals-clear:hover { color: var(--red); border-color: #fca5a5; }
+
+  footer { text-align: center; padding: 28px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); margin-top: 40px; }
+</style>
+{% endblock %}
 {% block content %}
+
+{% if not has_data %}
+<div style="max-width:600px;margin:80px auto;text-align:center;padding:40px;">
+  <h2 style="font-size:22px;font-weight:700;margin-bottom:12px;">No data yet</h2>
+  <p style="color:#64748b;margin-bottom:24px;">Upload your first ED Provider Metrics PDF to get started.</p>
+  <a href="{{ url_for('upload_page') }}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">Upload PDF</a>
+</div>
+{% else %}
+
 {% if month_list %}
-<div style="padding: 12px 24px; border-bottom: 1px solid #e2e8f0; background: #fff;">
+<div style="padding:12px 24px;border-bottom:1px solid #e2e8f0;background:#fff;">
   <select onchange="window.location='/dashboard?month='+this.value.split('/')[0]+'&year='+this.value.split('/')[1]"
           style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
     {% for m in month_list %}
@@ -12,13 +217,1166 @@
   </select>
 </div>
 {% endif %}
-{% if not has_data %}
-<div style="max-width:600px;margin:80px auto;text-align:center;padding:40px;">
-  <h2>No data yet</h2>
-  <p style="color:#64748b;margin-bottom:24px;">Upload your first ED Provider Metrics PDF to get started.</p>
-  <a href="{{ url_for('upload_page') }}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">Upload PDF</a>
+
+<main>
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <h1>ED Provider Metrics — {{ username }}</h1>
+    <p>Seattle Children's Hospital · Emergency Department · You vs. Peer Attendings</p>
+    {% if month_list %}
+    <span class="range-badge">
+      {{ month_list[0].label }} – {{ month_list[-1].label }}
+      &nbsp;·&nbsp; {{ month_list|length }}-month view
+    </span>
+    {% endif %}
+  </div>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <h2>This Month at a Glance <span class="badge">{{ selected.month_label if selected.month_label is defined else '' }}</span></h2>
+    <div class="kpi-grid">
+
+      <div class="kpi-card" style="--color:#2563eb" id="kpi-patients">
+        <div class="kpi-label">Patients Seen</div>
+        <div class="kpi-value">{{ selected.patients or '—' }}</div>
+        <div class="kpi-sub">All peers: {{ selected.patients_peers or '—' }}</div>
+        {% set pctile = selected.patients_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="kpi-card" style="--color:#2563eb" id="kpi-ptsPerHour">
+        <div class="kpi-label">Patients / Hour</div>
+        <div class="kpi-value">{{ selected.pts_per_hour_me or '—' }}</div>
+        <div class="kpi-sub">Peers avg: {{ selected.pts_per_hour_peers or '—' }}</div>
+        {% set pctile = selected.pts_per_hour_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile > 66 else ('pct-bad' if pctile < 33 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-ptsPerHour"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#dc2626" id="kpi-returns72">
+        <div class="kpi-label">72-Hr Return Rate</div>
+        <div class="kpi-value">{{ (selected.returns72_me|string + '%') if selected.returns72_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.returns72_peers|string + '%') if selected.returns72_peers is not none else '—' }} · Target: &lt;3.5%</div>
+        {% set pctile = selected.returns72_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-returns72"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#dc2626" id="kpi-readmits72">
+        <div class="kpi-label">72-Hr Readmit Rate</div>
+        <div class="kpi-value">{{ (selected.readmits72_me|string + '%') if selected.readmits72_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.readmits72_peers|string + '%') if selected.readmits72_peers is not none else '—' }}</div>
+        {% set pctile = selected.readmits72_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-readmits72"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#16a34a" id="kpi-dischargeLOS">
+        <div class="kpi-label">Discharge LOS</div>
+        <div class="kpi-value">{{ (selected.discharge_los_me|string + 'h') if selected.discharge_los_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.discharge_los_peers|string + 'h') if selected.discharge_los_peers is not none else '—' }}</div>
+        {% set pctile = selected.discharge_los_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-dischargeLOS"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#d97706" id="kpi-admitLOS">
+        <div class="kpi-label">Admit LOS</div>
+        <div class="kpi-value">{{ (selected.admit_los_me|string + 'h') if selected.admit_los_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.admit_los_peers|string + 'h') if selected.admit_los_peers is not none else '—' }}</div>
+        {% set pctile = selected.admit_los_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-admitLOS"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#d97706" id="kpi-admissionRate">
+        <div class="kpi-label">Admission Rate</div>
+        <div class="kpi-value">{{ (selected.admission_rate_me|string + '%') if selected.admission_rate_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.admission_rate_peers|string + '%') if selected.admission_rate_peers is not none else '—' }}</div>
+        {% set pctile = selected.admission_rate_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-admissionRate"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#16a34a" id="kpi-bedRequest">
+        <div class="kpi-label">Bed Request Time</div>
+        <div class="kpi-value">{{ (selected.bed_request_me|int|string + 'm') if selected.bed_request_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.bed_request_peers|int|string + 'm') if selected.bed_request_peers is not none else '—' }}</div>
+        {% set pctile = selected.bed_request_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-bedRequest"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#16a34a" id="kpi-dischargeRate">
+        <div class="kpi-label">Discharge Rate</div>
+        <div class="kpi-value">{{ (selected.discharge_rate_me|string + '%') if selected.discharge_rate_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.discharge_rate_peers|string + '%') if selected.discharge_rate_peers is not none else '—' }}</div>
+        {% set pctile = selected.discharge_rate_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile > 66 else ('pct-bad' if pctile < 33 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-dischargeRate"></span>
+      </div>
+
+      <div class="kpi-card" style="--color:#2563eb" id="kpi-labOrders">
+        <div class="kpi-label">Lab Orders</div>
+        <div class="kpi-value">{{ (selected.lab_orders_me|string + '%') if selected.lab_orders_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.lab_orders_peers|string + '%') if selected.lab_orders_peers is not none else '—' }}</div>
+        {% set pctile = selected.lab_orders_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="kpi-card" style="--color:#7c3aed" id="kpi-radOrders">
+        <div class="kpi-label">Radiology Orders</div>
+        <div class="kpi-value">{{ (selected.rad_orders_me|string + '%') if selected.rad_orders_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.rad_orders_peers|string + '%') if selected.rad_orders_peers is not none else '—' }}</div>
+        {% set pctile = selected.rad_orders_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="kpi-card" style="--color:#dc2626" id="kpi-icuRate">
+        <div class="kpi-label">ICU Admission Rate</div>
+        <div class="kpi-value">{{ (selected.icu_rate_me|string + '%') if selected.icu_rate_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.icu_rate_peers|string + '%') if selected.icu_rate_peers is not none else '—' }}</div>
+        {% set pctile = selected.icu_rate_pctile %}
+        {% if pctile is not none %}
+        <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
+          {{ pctile|round(0)|int }}th pct
+        </div>
+        {% endif %}
+        <span class="kpi-goal-badge" id="gbadge-icuRate"></span>
+      </div>
+
+    </div>
+
+    <!-- AUTO SUMMARY -->
+    <div id="autoSummary" style="
+      margin-top: 20px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 12px;
+      padding: 18px 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    ">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Performance Summary</div>
+      <div id="ins-content-overview">
+        <p style="color:#64748b;font-size:13px;">Click to load insights...</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SPEED & FLOW -->
+  <section id="throughput">
+    <h2>Throughput</h2>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Discharge Time (Hours)</div>
+            <div class="chart-sub">How long from arrival to discharge. Lower = faster.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-dischargeLOS" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-warn"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="dischargeLOS"></canvas></div>
+        <div class="insight-drawer" id="ins-dischargeLOS">
+          <div class="insight-inner" id="ins-content-dischargeLOS">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Admitted Patient Wait Time (Hours)</div>
+            <div class="chart-sub">Time from arrival to leaving the ED for an inpatient bed. Lower = better.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-admitLOS" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-warn"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="admitLOS"></canvas></div>
+        <div class="insight-drawer" id="ins-admitLOS">
+          <div class="insight-inner" id="ins-content-admitLOS">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Time to Bed Request (Minutes)</div>
+            <div class="chart-sub">How quickly you initiate a bed request after the patient arrives.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-bedRequest" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-warn"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#7c3aed"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="bedRequest"></canvas></div>
+        <div class="insight-drawer" id="ins-bedRequest">
+          <div class="insight-inner" id="ins-content-bedRequest">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Admission Rate (%)</div>
+            <div class="chart-sub">What percent of your patients get admitted. You run consistently lower than peers.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-admissionRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-alert"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#d97706"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="admissionRate"></canvas></div>
+        <div class="insight-drawer" id="ins-admissionRate">
+          <div class="insight-inner" id="ins-content-admissionRate">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Radiology Orders by Disposition</div>
+            <div class="chart-sub">How often you ordered imaging — split by patients who were admitted vs discharged.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-radByDispo" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-warn"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="chart-wrap" style="height:230px"><canvas id="radByDispo"></canvas></div>
+        <div class="insight-drawer" id="ins-radByDispo">
+          <div class="insight-inner" id="ins-content-radByDispo">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Lab Orders (%)</div>
+            <div class="chart-sub">How often you ordered labs. You run consistently below peer average.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-labOrders" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="labOrders"></canvas></div>
+        <div class="insight-drawer" id="ins-labOrders">
+          <div class="insight-inner" id="ins-content-labOrders">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SAFETY -->
+  <section id="safety">
+    <h2>Safety</h2>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Who Came Back Within 72 Hours (%)</div>
+            <div class="chart-sub">Unplanned return visits within 3 days.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-returns72" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-alert"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="returns72"></canvas></div>
+        <div class="insight-drawer" id="ins-returns72">
+          <div class="insight-inner" id="ins-content-returns72">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Who Came Back and Got Admitted (%)</div>
+            <div class="chart-sub">Returns that resulted in inpatient admission — the highest-severity safety signal.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-readmits72" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-alert"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="readmits72"></canvas></div>
+        <div class="insight-drawer" id="ins-readmits72">
+          <div class="insight-inner" id="ins-content-readmits72">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">ICU Admission Rate (%)</div>
+            <div class="chart-sub">How often your admitted patients required intensive care.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-icuRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-warn"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="icuRate"></canvas></div>
+        <div class="insight-drawer" id="ins-icuRate">
+          <div class="insight-inner" id="ins-content-icuRate">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- VOLUME & PRODUCTIVITY -->
+  <section id="productivity">
+    <h2>Volume &amp; Productivity</h2>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Seen Per Month</div>
+            <div class="chart-sub">Total patients you were the first attending on.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-volume" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="chart-wrap"><canvas id="volume"></canvas></div>
+        <div class="insight-drawer" id="ins-volume">
+          <div class="insight-inner" id="ins-content-volume">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Per Hour</div>
+            <div class="chart-sub">How many new patients you took on per hour. Higher = more productive.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-ptsPerHour" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-good"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="ptsPerHour"></canvas></div>
+        <div class="insight-drawer" id="ins-ptsPerHour">
+          <div class="insight-inner" id="ins-content-ptsPerHour">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Discharge Rate (%)</div>
+            <div class="chart-sub">What percent of your patients went home (not admitted). Higher is generally better for throughput.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-dischargeRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-good"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="dischargeRate"></canvas></div>
+        <div class="insight-drawer" id="ins-dischargeRate">
+          <div class="insight-inner" id="ins-content-dischargeRate">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patient Acuity Mix Over Time (ESI)</div>
+            <div class="chart-sub">Your patients are getting less acutely ill over time — more ESI-3/4 (urgent/non-urgent) since September.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-esiChart" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="chart-wrap tall"><canvas id="esiChart"></canvas></div>
+        <div class="insight-drawer" id="ins-esiChart">
+          <div class="insight-inner" id="ins-content-esiChart">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PERCENTILE TABLE -->
+    <div class="chart-card" style="margin-top:20px;">
+      <div class="card-header">
+        <div class="card-header-text">
+          <div class="chart-title">Full Ranking Summary — All Metrics</div>
+          <div class="chart-sub">Where you stand vs peers each month. Green = better than most peers. Red = worse than most peers.</div>
+        </div>
+        <button class="insight-btn" data-target="ins-pctTable" onclick="toggleInsight(this)">
+          <span class="sev-dot sev-warn"></span>Key Points
+          <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </button>
+      </div>
+      <table class="pct-table" style="margin-top:16px;">
+        <thead><tr><th>Metric</th>{% for m in month_list %}<th>{{ m.label.split(' ')[0] }}</th>{% endfor %}</tr></thead>
+        <tbody id="pctTableBody"></tbody>
+      </table>
+      <div class="insight-drawer" id="ins-pctTable">
+        <div class="insight-inner" id="ins-content-pctTable">
+          <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BILLING -->
+  <section id="billing">
+    <h2>Billing <span class="badge">Partial Data</span></h2>
+    <div class="data-notice">
+      <strong>Note on data availability:</strong> The billing page in these PDFs was filtered to a different provider in 5 of 6 months. Only the February 2026 report shows your billing data clearly. WRVU and physician charges values are rendered as charts in the PDFs — the actual numbers can't be extracted without a direct Tableau export or new PDFs generated with your name selected in the PROFEE view.
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Visit Complexity Level — Feb 2026</div>
+            <div class="chart-sub">32 billed visits. Level 3–5 = increasing complexity. Most of your visits billed as Level 4.</div>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="billingDist"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
+          <div style="background:var(--surface2); border-radius:8px; padding:20px; text-align:center;">
+            <div style="font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;">WRVU Per Visit</div>
+            <div style="font-size:24px; font-weight:800; color:var(--muted);">—</div>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">See Tableau PROFEE view</div>
+          </div>
+          <div style="background:var(--surface2); border-radius:8px; padding:20px; text-align:center;">
+            <div style="font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;">Charges Per Visit</div>
+            <div style="font-size:24px; font-weight:800; color:var(--muted);">—</div>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">See Tableau PROFEE view</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>Dashboard built from ED Provider Metrics PDFs · Seattle Children's Hospital · For internal review only</footer>
+
+<!-- GOAL PANEL -->
+<div class="goals-overlay" id="goalsOverlay" onclick="closeGoals()"></div>
+<div class="goals-panel" id="goalsPanel">
+  <div class="goals-header">
+    <div class="goals-header-title">My Monthly Goals</div>
+    <button class="goals-close" onclick="closeGoals()">✕</button>
+  </div>
+  <div class="goals-desc">Set a target for any metric. A green dashed line will appear on the chart. Goals are saved to your browser.</div>
+  <div class="goals-body"><div id="goalRows"></div></div>
+  <div class="goals-footer">
+    <button class="goals-save" onclick="saveGoals()">Save &amp; Apply Goals</button>
+    <button class="goals-clear" onclick="clearGoals()">Clear All</button>
+  </div>
 </div>
-{% else %}
-<p>Dashboard data will appear here.</p>
+
+<script>
+// ============================================================
+// DATA (server-injected)
+// ============================================================
+const months = {{ month_labels | tojson | safe }};
+const S = months.map(m => m.split(' ')[0]);
+const D = {{ metrics_json | tojson | safe }};
+const selIdx = {{ sel_idx }};
+
+// Rolling 3-month average
+function roll3(arr) {
+  return arr.map((_, i) => i < 2 ? null : parseFloat(((arr[i-2]+arr[i-1]+arr[i])/3).toFixed(2)));
+}
+
+// ============================================================
+// CHART REGISTRY + DEFAULTS
+// ============================================================
+const charts = {};
+
+Chart.defaults.color = '#64748b';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+
+const gc = 'rgba(0,0,0,0.07)';
+const tip = { backgroundColor:'#1e293b', borderColor:'rgba(37,99,235,0.25)', borderWidth:1, titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:11, cornerRadius:7 };
+
+function baseOpts(yLabel='', beginZero=false) {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{ legend:{display:false}, tooltip:tip },
+    scales:{
+      x:{ grid:{color:gc}, ticks:{color:'#64748b'} },
+      y:{ beginAtZero:beginZero, grid:{color:gc}, ticks:{color:'#64748b'},
+          title:{display:!!yLabel, text:yLabel, color:'#64748b', font:{size:11}} }
+    }
+  };
+}
+
+function ds(label, vals, color, dashed=false, fill=true) {
+  return {
+    label, data:vals, borderColor:color,
+    backgroundColor: fill && !dashed ? color+'22' : 'transparent',
+    borderWidth: dashed ? 1.5 : 2.5,
+    borderDash: dashed ? [5,4] : [],
+    pointRadius: dashed ? 0 : 4,
+    pointHoverRadius:6,
+    fill: fill && !dashed,
+    tension:0.35,
+  };
+}
+
+function goalDs(vals) {
+  return {
+    _isGoal:true, label:'Your Goal', data:vals,
+    borderColor:'#16a34a', backgroundColor:'transparent',
+    borderWidth:2, borderDash:[5,4], pointRadius:0, fill:false, tension:0,
+  };
+}
+
+function line(id, datasets, opts={}) {
+  charts[id] = new Chart(document.getElementById(id).getContext('2d'), {
+    type:'line', data:{labels:S, datasets},
+    options: baseOpts(opts.y, opts.z??false),
+  });
+}
+
+// ============================================================
+// BUILD ALL CHARTS
+// ============================================================
+
+// --- SPEED & FLOW ---
+if (D.dischargeLOS) line('dischargeLOS', [ds('You',D.dischargeLOS.me,'#2563eb'), ds('Peers',D.dischargeLOS.peers,'#94a3b8',true,false)], {y:'Hours'});
+if (D.admitLOS) line('admitLOS', [ds('You',D.admitLOS.me,'#dc2626'), ds('Peers',D.admitLOS.peers,'#94a3b8',true,false)], {y:'Hours'});
+if (D.bedRequest) line('bedRequest', [ds('You',D.bedRequest.me,'#7c3aed'), ds('Peers',D.bedRequest.peers,'#94a3b8',true,false)], {y:'Minutes'});
+if (D.admissionRate) line('admissionRate', [ds('You',D.admissionRate.me,'#d97706'), ds('Peers',D.admissionRate.peers,'#94a3b8',true,false)], {y:'%', z:true});
+
+// Radiology by disposition — grouped bar
+if (D.radByDispo) {
+  charts['radByDispo'] = new Chart(document.getElementById('radByDispo').getContext('2d'), {
+    type:'bar',
+    data:{ labels:S, datasets:[
+      { label:'You (Admitted)', data:D.radByDispo.admitMe, backgroundColor:'rgba(37,99,235,0.75)', borderRadius:3 },
+      { label:'Peers (Admitted)', data:D.radByDispo.admitPeers, backgroundColor:'rgba(37,99,235,0.25)', borderRadius:3 },
+      { label:'You (Discharged)', data:D.radByDispo.discMe, backgroundColor:'rgba(220,38,38,0.65)', borderRadius:3 },
+      { label:'Peers (Discharged)', data:D.radByDispo.discPeers, backgroundColor:'rgba(220,38,38,0.2)', borderRadius:3 },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{display:true, labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
+      scales:{
+        x:{grid:{color:gc}},
+        y:{beginAtZero:true, grid:{color:gc}, ticks:{color:'#64748b',callback:v=>v+'%'},
+           title:{display:true,text:'% with Imaging',color:'#64748b',font:{size:11}}}
+      }
+    }
+  });
+}
+
+if (D.labOrders) line('labOrders', [ds('You',D.labOrders.me,'#16a34a'), ds('Peers',D.labOrders.peers,'#94a3b8',true,false)], {y:'%'});
+
+// --- SAFETY ---
+if (D.returns72) {
+  charts['returns72'] = new Chart(document.getElementById('returns72').getContext('2d'), {
+    type:'line', data:{ labels:S, datasets:[
+      ds('You',D.returns72.me,'#dc2626'),
+      ds('Peers',D.returns72.peers,'#94a3b8',true,false),
+    ]},
+    options: baseOpts('%', true),
+  });
+}
+
+if (D.readmits72) {
+  charts['readmits72'] = new Chart(document.getElementById('readmits72').getContext('2d'), {
+    type:'line', data:{ labels:S, datasets:[
+      ds('You',D.readmits72.me,'#dc2626'),
+      ds('Peers',D.readmits72.peers,'#94a3b8',true,false),
+    ]},
+    options: baseOpts('%', true),
+  });
+}
+
+if (D.icuRate) {
+  charts['icuRate'] = new Chart(document.getElementById('icuRate').getContext('2d'), {
+    type:'bar',
+    data:{ labels:S, datasets:[
+      { label:'You', data:D.icuRate.me, backgroundColor:D.icuRate.me.map(v=>v>0?'rgba(220,38,38,0.7)':'rgba(22,163,74,0.6)'), borderRadius:5 },
+      { label:'Peers avg', data:D.icuRate.peers, backgroundColor:'rgba(148,163,184,0.4)', borderRadius:5 },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
+      scales:{
+        x:{grid:{color:gc}},
+        y:{beginAtZero:true, grid:{color:gc}, ticks:{color:'#64748b',callback:v=>v+'%'},
+           title:{display:true,text:'% of Patients',color:'#64748b',font:{size:11}}}
+      }
+    }
+  });
+}
+
+// --- VOLUME ---
+if (D.patients) {
+  charts['volume'] = new Chart(document.getElementById('volume').getContext('2d'), {
+    type:'bar',
+    data:{ labels:S, datasets:[{
+      label:'Patients',data:D.patients.me,borderRadius:6,
+      backgroundColor:D.patients.me.map((_,i)=>i===selIdx?'rgba(220,38,38,0.6)':'rgba(37,99,235,0.55)'),
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:tip},
+      scales:{x:{grid:{color:gc}},y:{beginAtZero:true,grid:{color:gc},title:{display:true,text:'Patients',color:'#64748b',font:{size:11}}}}
+    }
+  });
+}
+
+if (D.ptsPerHour) line('ptsPerHour', [ds('You',D.ptsPerHour.me,'#2563eb'), ds('Peers',D.ptsPerHour.peers,'#94a3b8',true,false)], {y:'Pts/Hr'});
+if (D.dischargeRate) line('dischargeRate', [ds('You',D.dischargeRate.me,'#16a34a'), ds('Peers',D.dischargeRate.peers,'#94a3b8',true,false)], {y:'%'});
+
+if (D.esi) {
+  charts['esiChart'] = new Chart(document.getElementById('esiChart').getContext('2d'), {
+    type:'bar',
+    data:{ labels:S, datasets:[
+      {label:'ESI-1 Critical',  data:D.esi.esi1, backgroundColor:'rgba(220,38,38,0.85)'},
+      {label:'ESI-2 Emergency', data:D.esi.esi2, backgroundColor:'rgba(217,119,6,0.8)'},
+      {label:'ESI-3 Urgent',    data:D.esi.esi3, backgroundColor:'rgba(37,99,235,0.65)'},
+      {label:'ESI-4 Non-Urgent',data:D.esi.esi4, backgroundColor:'rgba(22,163,74,0.55)'},
+      {label:'ESI-5 Minor',     data:D.esi.esi5, backgroundColor:'rgba(124,58,237,0.45)'},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}},
+        tooltip:{...tip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}%`}}},
+      scales:{
+        x:{stacked:true,grid:{color:gc}},
+        y:{stacked:true,min:0,max:100,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},
+           title:{display:true,text:'% of Patients',color:'#64748b',font:{size:11}}}
+      }
+    }
+  });
+}
+
+// Billing
+new Chart(document.getElementById('billingDist').getContext('2d'), {
+  type:'bar',
+  data:{labels:['Level 2','Level 3','Level 4','Level 5'],datasets:[{
+    label:'Feb 2026',data:[0,15.6,59.4,25.0],borderRadius:6,
+    backgroundColor:['rgba(22,163,74,0.5)','rgba(37,99,235,0.7)','rgba(124,58,237,0.7)','rgba(217,119,6,0.7)'],
+  }]},
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{...tip,callbacks:{label:ctx=>` ${ctx.raw}% of visits`}}},
+    scales:{x:{grid:{color:gc}},y:{beginAtZero:true,max:75,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},title:{display:true,text:'% of Billed Visits',color:'#64748b',font:{size:11}}}}
+  }
+});
+
+// ============================================================
+// PERCENTILE TABLE
+// ============================================================
+const pctRows = [];
+if (D.dischargeLOS && D.dischargeLOS.pctile) pctRows.push({label:'Discharge Time',   data:D.dischargeLOS.pctile,   lowerBetter:true});
+if (D.admitLOS && D.admitLOS.pctile) pctRows.push({label:'Admit Wait Time',  data:D.admitLOS.pctile,       lowerBetter:true});
+if (D.bedRequest && D.bedRequest.pctile) pctRows.push({label:'Bed Request Time', data:D.bedRequest.pctile,     lowerBetter:true});
+if (D.admissionRate && D.admissionRate.pctile) pctRows.push({label:'Admission Rate',   data:D.admissionRate.pctile,  lowerBetter:false});
+if (D.returns72 && D.returns72.pctile) pctRows.push({label:'72-Hr Returns',    data:D.returns72.pctile,      lowerBetter:true});
+if (D.readmits72 && D.readmits72.pctile) pctRows.push({label:'72-Hr Readmits',   data:D.readmits72.pctile,     lowerBetter:true});
+if (D.radOrders && D.radOrders.pctile) pctRows.push({label:'Radiology Orders', data:D.radOrders.pctile,      lowerBetter:false});
+if (D.labOrders && D.labOrders.pctile) pctRows.push({label:'Lab Orders',       data:D.labOrders.pctile,      lowerBetter:false});
+if (D.ptsPerHour && D.ptsPerHour.pctile) pctRows.push({label:'Patients/Hour',    data:D.ptsPerHour.pctile,     lowerBetter:false});
+if (D.dischargeRate && D.dischargeRate.pctile) pctRows.push({label:'Discharge Rate',   data:D.dischargeRate.pctile,  lowerBetter:false});
+
+function pctColor(v, lb) {
+  if(v===null) return '#64748b';
+  const good = lb ? v<33 : v>66;
+  const bad  = lb ? v>66 : v<33;
+  return good ? '#16a34a' : bad ? '#dc2626' : '#d97706';
+}
+
+const tbody = document.getElementById('pctTableBody');
+pctRows.forEach(row => {
+  const tr = document.createElement('tr');
+  let h = `<td style="font-weight:600;color:#1e293b;">${row.label}</td>`;
+  row.data.forEach(v => {
+    const c = pctColor(v, row.lowerBetter);
+    const bg = c==='#16a34a'?'#dcfce7':c==='#dc2626'?'#fee2e2':'#fef9c3';
+    h += `<td style="color:${c};font-weight:700;background:${bg};border-radius:5px;">${v===null?'—':Math.round(v)+'th'}</td>`;
+  });
+  tr.innerHTML = h;
+  tbody.appendChild(tr);
+});
+
+// ============================================================
+// INSIGHT TOGGLE (fetch-based)
+// ============================================================
+const _loadedInsights = new Set();
+
+function toggleInsight(btn) {
+  const targetId = btn.dataset.target;
+  const drawer = document.getElementById(targetId);
+  const isOpen = drawer.classList.contains('open');
+
+  // Close all open drawers
+  document.querySelectorAll('.insight-drawer.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.insight-btn.open').forEach(b => b.classList.remove('open'));
+
+  if (!isOpen) {
+    drawer.classList.add('open');
+    btn.classList.add('open');
+
+    const chartKey = targetId.replace('ins-', '');
+    if (!_loadedInsights.has(chartKey)) {
+      _loadedInsights.add(chartKey);
+      const contentEl = document.getElementById('ins-content-' + chartKey);
+      if (!contentEl) return;
+
+      // Get selected month/year from current data
+      const selMonth = months[selIdx] || '';
+      const parts = selMonth.split(' ');
+      const monthNum = new Date(Date.parse(parts[0] + ' 1')).getMonth() + 1;
+      const year = parts[1];
+
+      contentEl.innerHTML = '<p style="color:#64748b;font-size:13px;padding:8px 0;">Loading insights...</p>';
+
+      fetch(`/api/insights/${chartKey}/${monthNum}/${year}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            contentEl.innerHTML = `<p style="color:#dc2626;font-size:13px;">${data.error} <button onclick="_loadedInsights.delete('${chartKey}');toggleInsight(document.querySelector('[data-target=ins-${chartKey}]'))" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px;text-decoration:underline;">Retry</button></p>`;
+            return;
+          }
+          const sevClass = {alert:'sev-alert',warn:'sev-warn',good:'sev-good',neutral:'sev-neutral'};
+          contentEl.innerHTML = data.map(item => `
+            <div class="insight-item">
+              <div class="insight-sev ${sevClass[item.severity] || 'sev-neutral'}"></div>
+              <div class="insight-text">${item.text}
+                ${item.tags && item.tags.length ? '<div class="insight-tags">' + item.tags.map(t => `<span class="itag itag-${t}">${t}</span>`).join('') + '</div>' : ''}
+              </div>
+            </div>
+          `).join('');
+        })
+        .catch(() => {
+          contentEl.innerHTML = `<p style="color:#dc2626;font-size:13px;">Failed to load insights.</p>`;
+        });
+    }
+  }
+}
+
+// ============================================================
+// GOAL PANEL
+// ============================================================
+const goalDefs = [
+  {id:'returns72',    label:'72-Hr Return Rate',           unit:'%',   dir:'lower',  current:{{ selected.returns72_me or 0 }},  hint:'Target: <3.5% · Peer avg: {{ selected.returns72_peers or "—" }}%',  chartId:'returns72'},
+  {id:'readmits72',   label:'Readmit Rate (72-Hr)',         unit:'%',   dir:'lower',  current:{{ selected.readmits72_me or 0 }},  hint:'Lower is better · Peer avg: {{ selected.readmits72_peers or "—" }}%', chartId:'readmits72'},
+  {id:'dischargeLOS', label:'Discharge Time',               unit:'hrs', dir:'lower',  current:{{ selected.discharge_los_me or 0 }}, hint:'Lower is better · Peer avg: {{ selected.discharge_los_peers or "—" }}h', chartId:'dischargeLOS'},
+  {id:'admitLOS',     label:'Admitted Patient Wait Time',   unit:'hrs', dir:'lower',  current:{{ selected.admit_los_me or 0 }}, hint:'Lower is better · Peer avg: {{ selected.admit_los_peers or "—" }}h', chartId:'admitLOS'},
+  {id:'admissionRate',label:'Admission Rate',               unit:'%',   dir:'neutral',current:{{ selected.admission_rate_me or 0 }}, hint:'Set your personal target',          chartId:'admissionRate'},
+  {id:'bedRequest',   label:'Time to Bed Request',          unit:'min', dir:'lower',  current:{{ selected.bed_request_me or 0 }},  hint:'Lower is better · Peer avg: {{ selected.bed_request_peers or "—" }}',  chartId:'bedRequest'},
+  {id:'ptsPerHour',   label:'Patients Per Hour',            unit:'/hr', dir:'higher', current:{{ selected.pts_per_hour_me or 0 }}, hint:'Higher is better · Peer avg: {{ selected.pts_per_hour_peers or "—" }}',chartId:'ptsPerHour'},
+  {id:'dischargeRate',label:'Discharge Rate',               unit:'%',   dir:'higher', current:{{ selected.discharge_rate_me or 0 }},   hint:'Higher is better · Peer avg: {{ selected.discharge_rate_peers or "—" }}%', chartId:'dischargeRate'},
+  {id:'icuRate',      label:'ICU Admission Rate',           unit:'%',   dir:'lower',  current:{{ selected.icu_rate_me or 0 }},    hint:'Lower is better · Peer avg: {{ selected.icu_rate_peers or "—" }}%',chartId:'icuRate'},
+];
+
+function loadGoals() {
+  try { return JSON.parse(localStorage.getItem('ed_goals') || '{}'); } catch(e) { return {}; }
+}
+
+function saveToStorage(goals) {
+  try { localStorage.setItem('ed_goals', JSON.stringify(goals)); } catch(e) {}
+}
+
+function setGoalLine(chartId, value) {
+  const chart = charts[chartId];
+  if (!chart) return;
+  const idx = chart.data.datasets.findIndex(d => d._isGoal);
+  if (value !== null && value !== '' && !isNaN(value)) {
+    const flat = Array(months.length).fill(parseFloat(value));
+    if (idx >= 0) { chart.data.datasets[idx].data = flat; }
+    else { chart.data.datasets.push(goalDs(flat)); }
+  } else {
+    if (idx >= 0) chart.data.datasets.splice(idx, 1);
+  }
+  chart.update('none');
+}
+
+function updateKpiBadge(id, goalVal, currentVal, dir) {
+  const el = document.getElementById('gbadge-' + id);
+  if (!el) return;
+  if (goalVal === null || goalVal === '') { el.textContent = ''; el.className = 'kpi-goal-badge'; return; }
+  const g = parseFloat(goalVal);
+  const c = parseFloat(currentVal);
+  let onTrack;
+  if (dir === 'lower') onTrack = c <= g;
+  else if (dir === 'higher') onTrack = c >= g;
+  else onTrack = null;
+  if (onTrack === null) { el.textContent = `Goal: ${g}${''}`; el.className = 'kpi-goal-badge'; }
+  else if (onTrack) { el.textContent = `Goal: ${g} · On track ✓`; el.className = 'kpi-goal-badge on-track'; }
+  else { el.textContent = `Goal: ${g} · Not yet ↗`; el.className = 'kpi-goal-badge off-track'; }
+}
+
+function renderGoalRows() {
+  const goals = loadGoals();
+  const container = document.getElementById('goalRows');
+  container.innerHTML = '';
+  goalDefs.forEach(gd => {
+    const val = goals[gd.id] ?? '';
+    const g = val !== '' ? parseFloat(val) : null;
+    const c = gd.current;
+    let status = 'not-set', statusTxt = 'No goal set';
+    if (g !== null) {
+      const ok = gd.dir==='lower' ? c<=g : gd.dir==='higher' ? c>=g : null;
+      if (ok === true)  { status='on-track';  statusTxt='On track ✓'; }
+      if (ok === false) { status='off-track'; statusTxt='Off track ↗'; }
+      if (ok === null)  { status='not-set';   statusTxt=`Goal: ${g}`; }
+    }
+    const div = document.createElement('div');
+    div.className = 'goal-row';
+    div.innerHTML = `
+      <div class="goal-row-label">${gd.label} <span class="goal-row-hint">${gd.hint}</span></div>
+      <div class="goal-input-wrap">
+        <input class="goal-input" type="number" step="0.1" id="ginput-${gd.id}" value="${val}" placeholder="e.g. ${gd.current}">
+        <span class="goal-unit">${gd.unit}</span>
+        <span class="goal-status ${status}">${statusTxt}</span>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function applyAllGoals() {
+  const goals = loadGoals();
+  goalDefs.forEach(gd => {
+    const v = goals[gd.id];
+    setGoalLine(gd.chartId, v ?? null);
+    updateKpiBadge(gd.id, v ?? null, gd.current, gd.dir);
+  });
+}
+
+function saveGoals() {
+  const goals = {};
+  goalDefs.forEach(gd => {
+    const inp = document.getElementById('ginput-' + gd.id);
+    if (inp && inp.value !== '') goals[gd.id] = parseFloat(inp.value);
+  });
+  saveToStorage(goals);
+  applyAllGoals();
+  renderGoalRows();
+}
+
+function clearGoals() {
+  saveToStorage({});
+  goalDefs.forEach(gd => {
+    setGoalLine(gd.chartId, null);
+    updateKpiBadge(gd.id, null, gd.current, gd.dir);
+  });
+  renderGoalRows();
+}
+
+function toggleGoals() {
+  renderGoalRows();
+  document.getElementById('goalsPanel').classList.add('open');
+  document.getElementById('goalsOverlay').classList.add('open');
+}
+function closeGoals() {
+  document.getElementById('goalsPanel').classList.remove('open');
+  document.getElementById('goalsOverlay').classList.remove('open');
+}
+
+// Apply saved goals on load
+applyAllGoals();
+
+// ============================================================
+// AUTO SUMMARY GENERATOR
+// ============================================================
+(function buildSummary() {
+  if (!D.returns72 || !D.readmits72 || !D.admissionRate || !D.dischargeLOS || !D.bedRequest || !D.ptsPerHour || !D.dischargeRate) return;
+
+  const n = selIdx;
+  const mo = months[n];
+
+  // Collect signals
+  const readmitRate   = D.readmits72.me[n];
+  const readmitPeers  = D.readmits72.peers[n];
+  const readmitPctile = D.readmits72.pctile ? D.readmits72.pctile[n] : null;
+  const returnRate    = D.returns72.me[n];
+  const returnPeers   = D.returns72.peers[n];
+  const admitRate     = D.admissionRate.me[n];
+  const admitPeers    = D.admissionRate.peers[n];
+  const dischLOS      = D.dischargeLOS.me[n];
+  const dischLOSpctile= D.dischargeLOS.pctile ? D.dischargeLOS.pctile[n] : null;
+  const bedReqPctile  = D.bedRequest.pctile ? D.bedRequest.pctile[n] : null;
+  const ptsPctile     = D.ptsPerHour.pctile ? D.ptsPerHour.pctile[n] : null;
+  const discRatePctile= D.dischargeRate.pctile ? D.dischargeRate.pctile[n] : null;
+
+  // Identify top strengths
+  const strengths = [];
+  if (dischLOSpctile !== null && dischLOSpctile < 25)
+    strengths.push(`discharge time faster than ${100-dischLOSpctile}% of peers (${dischLOS}h)`);
+  if (bedReqPctile !== null && bedReqPctile < 35)
+    strengths.push(`bed request time faster than ${100-bedReqPctile}% of peers`);
+  if (ptsPctile !== null && ptsPctile > 70)
+    strengths.push(`patient throughput in the top ${100-ptsPctile}% (${D.ptsPerHour.me[n]}/hr)`);
+  if (discRatePctile !== null && discRatePctile > 75)
+    strengths.push(`discharge rate of ${D.dischargeRate.me[n]}% vs peer avg ${D.dischargeRate.peers[n]}%`);
+
+  // Identify concerns
+  const concerns = [];
+  const readmitsElevatedMonths = D.readmits72.pctile ? D.readmits72.pctile.filter(p => p !== null && p > 65).length : 0;
+  if (readmitPctile !== null && readmitPctile > 65)
+    concerns.push(`readmit rate of ${readmitRate}% (peer avg ${readmitPeers}%) — worse than ${readmitPctile}% of peers`);
+  if (returnRate !== null && returnRate > 3.5)
+    concerns.push(`72-hr return rate of ${returnRate}% is above the 3.5% benchmark`);
+  const admitGap = admitPeers && admitRate !== null ? (admitPeers - admitRate).toFixed(1) : null;
+  if (admitRate !== null && admitPeers !== null && admitRate < admitPeers - 3)
+    concerns.push(`admission rate of ${admitRate}% runs ${admitGap} pp below peer avg (${admitPeers}%)`);
+
+  // Build summary sentence
+  let summary = '';
+  if (strengths.length > 0 && concerns.length > 0) {
+    const sStr = strengths.slice(0,2).join(' and ');
+    const cStr = concerns[0];
+    summary = `In ${mo}, your clearest strengths are <strong>${sStr}</strong>. The most pressing concern is a <strong>${cStr}</strong>`;
+    if (readmitsElevatedMonths >= 4 && concerns.some(c => c.includes('readmit')))
+      summary += ` — a pattern that has now appeared in ${readmitsElevatedMonths} of ${n+1} months.`;
+    else
+      summary += '.';
+  } else if (strengths.length > 0) {
+    summary = `In ${mo}, performance is strong across most metrics — notably <strong>${strengths.slice(0,2).join(' and ')}</strong>. No major concerns stand out this month.`;
+  } else {
+    summary = `In ${mo}, there are areas that need attention, including <strong>${concerns[0] || 'elevated safety metrics'}</strong>.`;
+  }
+
+  // Generate concrete improvement actions
+  const actions = [];
+
+  if (readmitPctile !== null && readmitPctile > 65 && admitRate !== null && admitPeers !== null && admitRate < admitPeers - 3) {
+    actions.push({
+      label: 'Priority action',
+      text: `Pull your ${mo} 72-hour readmission cases and identify the top 2–3 diagnoses. These patients were sent home and returned needing admission — understanding their diagnoses tells you exactly where to adjust your discharge threshold.`,
+    });
+  } else if (readmitPctile !== null && readmitPctile > 65) {
+    actions.push({
+      label: 'Priority action',
+      text: `Review your recent 72-hour readmissions. With a rate of ${readmitRate}% (peer avg ${readmitPeers}%), a focused chart review of 5–10 cases will likely reveal a pattern in diagnosis, time-of-day, or discharge plan gaps.`,
+    });
+  }
+
+  if (returnRate !== null && returnRate > 3.5) {
+    actions.push({
+      label: 'Follow-up action',
+      text: `Your 72-hr return rate of ${returnRate}% is above the 3.5% target. For your most common return diagnoses, verify whether discharge instructions include a specific return-precaution trigger (a symptom that should prompt the patient to come back) and a defined follow-up plan within 24–48 hours.`,
+    });
+  }
+
+  if (actions.length === 0) {
+    actions.push({
+      label: 'Maintain',
+      text: `Your safety and throughput metrics are tracking well this month. Keep monitoring the readmit rate trend — it has been the most variable metric over the past 6 months.`,
+    });
+  }
+
+  // Render
+  const contentEl = document.getElementById('ins-content-overview');
+  if (!contentEl) return;
+  let html = `<p id="summaryText" style="font-size:14px;color:var(--text);line-height:1.75;margin-bottom:14px;">${summary}</p>`;
+  html += '<div id="summaryActions" style="display:flex;flex-direction:column;gap:8px;">';
+  actions.forEach((a, i) => {
+    html += `<div style="display:flex;gap:10px;align-items:flex-start;">
+      <span style="flex-shrink:0;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;margin-top:1px;
+        background:${i===0?'#fee2e2':'#dbeafe'};color:${i===0?'#dc2626':'#1d4ed8'};">${a.label}</span>
+      <span style="font-size:13px;color:var(--muted);line-height:1.65;">${a.text}</span>
+    </div>`;
+  });
+  html += '</div>';
+  contentEl.innerHTML = html;
+})();
+
+// ============================================================
+// KPI CARD → CHART CLICK NAVIGATION
+// ============================================================
+const kpiTargets = {
+  'kpi-patients':      'volume',
+  'kpi-ptsPerHour':    'ptsPerHour',
+  'kpi-returns72':     'returns72',
+  'kpi-readmits72':    'readmits72',
+  'kpi-dischargeLOS':  'dischargeLOS',
+  'kpi-admitLOS':      'admitLOS',
+  'kpi-admissionRate': 'admissionRate',
+  'kpi-bedRequest':    'bedRequest',
+  'kpi-dischargeRate': 'dischargeRate',
+  'kpi-labOrders':     'labOrders',
+  'kpi-radOrders':     'radByDispo',
+  'kpi-icuRate':       'icuRate',
+};
+
+Object.entries(kpiTargets).forEach(([cardId, canvasId]) => {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.setAttribute('title', 'Click to jump to chart');
+  card.addEventListener('click', () => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const chartCard = canvas.closest('.chart-card');
+    if (!chartCard) return;
+    const top = chartCard.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top, behavior: 'smooth' });
+    chartCard.classList.remove('flash');
+    void chartCard.offsetWidth;
+    chartCard.classList.add('flash');
+    setTimeout(() => chartCard.classList.remove('flash'), 1100);
+    const insightBtn = chartCard.querySelector('.insight-btn');
+    const drawer = insightBtn ? document.getElementById(insightBtn.getAttribute('data-target')) : null;
+    if (insightBtn && drawer && !drawer.classList.contains('open')) {
+      setTimeout(() => { toggleInsight(insightBtn); }, 500);
+    }
+  });
+});
+
+// ============================================================
+// NAV SCROLL HIGHLIGHT
+// ============================================================
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => { if(window.scrollY >= s.offsetTop - 80) cur = s.id; });
+  navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href')==='#'+cur));
+}, {passive:true});
+
+// Expose charts on window for external access
+window.charts = charts;
+</script>
+
 {% endif %}
 {% endblock %}
