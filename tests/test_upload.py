@@ -30,5 +30,5 @@ def test_parse_wrong_file_raises():
         os.unlink(path)
 
 def test_parse_nonexistent_file_raises():
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         parse_metrics('/nonexistent/path/file.pdf')

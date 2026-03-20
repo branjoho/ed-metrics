@@ -29,16 +29,6 @@ def _parse_int(s):
         return None
 
 
-def _parse_pctile(s):
-    """Convert a string like '13%' or '50.00%' to float, or None."""
-    if s is None:
-        return None
-    s = s.strip().rstrip('%')
-    try:
-        return float(s)
-    except (ValueError, TypeError):
-        return None
-
 
 def _extract_month_year_from_filename(pdf_path):
     """
@@ -116,23 +106,6 @@ def parse_metrics(pdf_path: str) -> dict:
     # Helper: extract a block like:
     #   "3.467289720 3.47\n3.8\n13% Percentile"
     # Returns (me_str, peers_str, pctile_str)
-
-    def _extract_metric_block(text, label_pattern, value_pattern=None):
-        """
-        After label_pattern, extract:
-          line with long float + short float (me)
-          next line: peers value
-          next line: pctile
-        """
-        m = re.search(label_pattern, text, re.DOTALL | re.IGNORECASE)
-        if not m:
-            return None, None, None
-        rest = text[m.end():]
-        # Remove "Peers" line that sometimes appears before values
-        rest = rest.lstrip('\n ')
-        # Grab up to 6 lines
-        lines = [ln.strip() for ln in rest.split('\n') if ln.strip()][:8]
-        return lines
 
     # ---- Discharge LOS (Average) ----
     # Pattern: long float  short_float\npeers_float\npctile% Percentile
@@ -319,22 +292,26 @@ def parse_metrics(pdf_path: str) -> dict:
     # ----------------------------------------------------------------
     billing_text = pages[5] if len(pages) > 5 else ''
 
-    billing_level2 = None
     billing_level3 = None
     billing_level4 = None
     billing_level5 = None
 
-    # The provider row starts with the provider name then billing %s
-    # Format: "HO, BRANDON JOSEPH-RO.. 0.0% 15.6% 59.4% 25.0% 32"
+    # The provider row starts with "LASTNAME, FIRSTNAME [MIDDLENAME-]SUFFIX[..]"
+    # (name may be truncated with dots) followed by billing % columns:
+    # level2% level3% level4% level5% visits
+    # Match any provider name in "LAST, FIRST..." format.
     m = re.search(
-        r'HO,\s+BRANDON\s+JOSEPH-R[A-Z.]+\s+([\d.]+%)\s+([\d.]+%)\s+([\d.]+%)\s+([\d.]+%)\s+\d+',
+        r'[A-Z]+,\s+[A-Z][A-Z\s.-]+\s+([\d.]+%)\s+([\d.]+%)\s+([\d.]+%)\s+([\d.]+%)\s+\d+',
         billing_text
     )
     if m:
-        billing_level2 = _parse_float(m.group(1))
-        billing_level3 = _parse_float(m.group(2))
-        billing_level4 = _parse_float(m.group(3))
-        billing_level5 = _parse_float(m.group(4))
+        # Values are percentages (e.g. "15.6%"); store as rounded integer
+        def _pct_to_int(s):
+            v = _parse_float(s)
+            return int(round(v)) if v is not None else None
+        billing_level3 = _pct_to_int(m.group(2))
+        billing_level4 = _pct_to_int(m.group(3))
+        billing_level5 = _pct_to_int(m.group(4))
 
     # ----------------------------------------------------------------
     # Page 7 (summary): Discharge rate, ICU rate, and rad/lab admit/disc
@@ -501,7 +478,6 @@ def parse_metrics(pdf_path: str) -> dict:
         'esi4': esi4,
         'esi5': esi5,
         # Billing
-        'billing_level2': billing_level2,
         'billing_level3': billing_level3,
         'billing_level4': billing_level4,
         'billing_level5': billing_level5,
