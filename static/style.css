@@ -1,0 +1,31 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; }
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.97); border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; padding: 0 24px; height: 56px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.brand { font-weight: 800; font-size: 16px; color: #2563eb; margin-right: auto; }
+nav a, .nav-link-btn {
+  color: #64748b; text-decoration: none; font-size: 14px; font-weight: 500;
+  padding: 0 14px; height: 56px; display: flex; align-items: center;
+  border: none; background: none; cursor: pointer; font-family: inherit;
+}
+nav a:hover, .nav-link-btn:hover { color: #1e293b; }
+.nav-user { font-size: 14px; color: #64748b; padding: 0 14px; }
+.flash-container { padding: 12px 24px; }
+.flash { padding: 10px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; }
+.flash-error { background: #fee2e2; color: #dc2626; }
+.flash-success { background: #dcfce7; color: #16a34a; }
+.flash-info { background: #dbeafe; color: #2563eb; }
+.auth-page { max-width: 400px; margin: 80px auto; padding: 40px; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 12px; }
+.auth-page h1 { font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+.auth-page label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.auth-page input { display: block; width: 100%; margin-top: 4px; padding: 9px 12px;
+  border: 1px solid #e2e8f0; border-radius: 7px; font-size: 14px; font-family: inherit; }
+.auth-page button[type=submit] { width: 100%; padding: 10px; background: #2563eb; color: #fff;
+  border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+  font-family: inherit; cursor: pointer; margin-top: 8px; }
+.auth-page p { margin-top: 16px; font-size: 13px; text-align: center; color: #64748b; }

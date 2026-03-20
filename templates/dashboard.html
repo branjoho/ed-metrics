@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+{% if not has_data %}
+<div style="max-width:600px;margin:80px auto;text-align:center;padding:40px;">
+  <h2>No data yet</h2>
+  <p style="color:#64748b;margin-bottom:24px;">Upload your first ED Provider Metrics PDF to get started.</p>
+  <a href="{{ url_for('upload_page') }}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">Upload PDF</a>
+</div>
+{% else %}
+<p>Dashboard data will appear here.</p>
+{% endif %}
+{% endblock %}

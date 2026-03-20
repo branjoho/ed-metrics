@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<main class="auth-page">
+  <h1>Create Account</h1>
+  <form method="post">
+    <label>Username (3–32 chars, letters/numbers/underscores)
+      <input type="text" name="username" value="{{ username or '' }}" required autofocus>
+    </label>
+    <label>Password (min 8 characters)
+      <input type="password" name="password" required>
+    </label>
+    <button type="submit">Create Account</button>
+  </form>
+  <p><a href="{{ url_for('login') }}">Already have an account?</a></p>
+</main>
+{% endblock %}
