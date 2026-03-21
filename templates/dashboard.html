@@ -912,6 +912,7 @@ if (D.returns72) {
     type:'line', data:{ labels:S, datasets:[
       ds('You',D.returns72.me,'#dc2626'),
       ds('Peers',D.returns72.peers,'#94a3b8',true,false),
+      ds('3-Mo Avg',roll3(D.returns72.me),'#f97316',true,false),
     ]},
     options: baseOpts('%', true),
   });
@@ -922,6 +923,7 @@ if (D.readmits72) {
     type:'line', data:{ labels:S, datasets:[
       ds('You',D.readmits72.me,'#dc2626'),
       ds('Peers',D.readmits72.peers,'#94a3b8',true,false),
+      ds('3-Mo Avg',roll3(D.readmits72.me),'#f97316',true,false),
     ]},
     options: baseOpts('%', true),
   });
@@ -1088,7 +1090,7 @@ function toggleInsight(btn) {
           `).join('');
         })
         .catch(() => {
-          contentEl.innerHTML = `<p style="color:#dc2626;font-size:13px;">Failed to load insights.</p>`;
+          contentEl.innerHTML = `<p style="color:#dc2626;font-size:13px;">Failed to load insights. <button onclick="_loadedInsights.delete('${chartKey}');toggleInsight(document.querySelector('[data-target=ins-${chartKey}]'))" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px;text-decoration:underline;">Retry</button></p>`;
         });
     }
   }
