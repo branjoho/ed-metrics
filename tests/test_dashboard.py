@@ -54,6 +54,12 @@ def test_dashboard_month_filter(client):
     upload_month(client, m2)
     rv = client.get('/dashboard?month=1&year=2026')
     assert rv.status_code == 200
+    data = rv.data.decode()
+    assert '204' in data  # Jan 2026 patients count should be selected
+    # default (no param) should show most recent (Feb 2026 = patients 125)
+    rv2 = client.get('/dashboard')
+    data2 = rv2.data.decode()
+    assert '204' not in data2 or '125' in data2  # most recent is Feb
 
 def test_dashboard_data_isolation(client):
     # user2 cannot see user1's data
