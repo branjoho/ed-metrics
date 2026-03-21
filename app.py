@@ -1,9 +1,11 @@
 import os
 import re
+import json
 import sqlite3
 import tempfile
-from datetime import datetime, timezone
-from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request
+import anthropic
+from datetime import datetime, timezone, timedelta
+from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -21,6 +23,9 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 os.makedirs(app.instance_path, exist_ok=True)
+
+_api_key = os.environ.get('ANTHROPIC_API_KEY')
+anthropic_client = anthropic.Anthropic(api_key=_api_key) if _api_key else None
 
 
 SCHEMA = """
@@ -160,6 +165,121 @@ def logout():
 
 MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+CHART_CONTEXTS = {
+    'dischargeLOS':  ('Discharge Time (Hours)', 'discharge_los_me', 'discharge_los_peers', 'discharge_los_pctile', 'Lower = faster. Percentile: lower = better than peers.'),
+    'admitLOS':      ('Admitted Patient Wait Time (Hours)', 'admit_los_me', 'admit_los_peers', 'admit_los_pctile', 'Time from arrival to leaving ED for inpatient bed. Lower = better.'),
+    'admissionRate': ('Admission Rate (%)', 'admission_rate_me', 'admission_rate_peers', 'admission_rate_pctile', 'Percent of patients admitted. Context: watch alongside readmit rate.'),
+    'bedRequest':    ('Time to Bed Request (Minutes)', 'bed_request_me', 'bed_request_peers', 'bed_request_pctile', 'How quickly bed request initiated after arrival. Lower = better.'),
+    'returns72':     ('72-Hour Return Rate (%)', 'returns72_me', 'returns72_peers', 'returns72_pctile', 'Unplanned returns within 3 days. Lower = better. Target <3.5%.'),
+    'readmits72':    ('72-Hour Readmit Rate (%)', 'readmits72_me', 'readmits72_peers', 'readmits72_pctile', 'Returns that resulted in admission — highest-severity safety signal. Lower = better.'),
+    'icuRate':       ('ICU Admission Rate (%)', 'icu_rate_me', 'icu_rate_peers', 'icu_rate_pctile', 'How often admitted patients required intensive care.'),
+    'radOrders':     ('Radiology Orders (%)', 'rad_orders_me', 'rad_orders_peers', 'rad_orders_pctile', 'How often imaging was ordered across all patients.'),
+    'labOrders':     ('Lab Orders (%)', 'lab_orders_me', 'lab_orders_peers', 'lab_orders_pctile', 'How often labs were ordered.'),
+    'ptsPerHour':    ('Patients Per Hour', 'pts_per_hour_me', 'pts_per_hour_peers', 'pts_per_hour_pctile', 'New patients taken on per hour. Higher = more productive.'),
+    'dischargeRate': ('Discharge Rate (%)', 'discharge_rate_me', 'discharge_rate_peers', 'discharge_rate_pctile', 'Percent of patients discharged (not admitted). Higher = better for throughput.'),
+    'volume':        ('Patients Seen Per Month', 'patients', None, None, 'Total patients you were first attending on.'),
+}
+
+def _build_insights_prompt(chart_key, sel_row, all_rows):
+    ctx = CHART_CONTEXTS.get(chart_key)
+    if not ctx:
+        return None
+    chart_name, me_field, peers_field, pctile_field, description = ctx
+
+    this_month = f"{MONTH_NAMES[sel_row['month']]} {sel_row['year']}"
+    me_val = sel_row.get(me_field)
+    peers_val = sel_row.get(peers_field) if peers_field else None
+    pctile_val = sel_row.get(pctile_field) if pctile_field else None
+
+    trend_rows = []
+    for r in all_rows:
+        lbl = f"{MONTH_NAMES[r['month']]} {r['year']}"
+        v = r.get(me_field)
+        p = r.get(peers_field) if peers_field else None
+        pct = r.get(pctile_field) if pctile_field else None
+        trend_rows.append(f"  {lbl}: you={v}, peers={p}, pctile={pct}")
+    trend = '\n'.join(trend_rows)
+
+    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital.
+
+Chart: {chart_name}
+Context: {description}
+
+This month ({this_month}):
+- Provider value: {me_val}
+- Peer average: {peers_val}
+- Percentile: {pctile_val}
+
+Trend across all uploaded months:
+{trend}
+
+Generate 2-4 concise insights. Each insight must have:
+- severity: one of "alert", "warn", "good", "neutral"
+- text: 1-2 sentences of plain text (no markdown)
+- tags: list of 0-2 tags from ["trend", "bench", "pos", "safety"]
+
+Return ONLY a valid JSON array, no markdown:
+[{{"severity": "...", "text": "...", "tags": [...]}}]"""
+
+@app.route('/api/insights/<chart_key>/<int:month>/<int:year>')
+@login_required
+def get_insights(chart_key, month, year):
+    if not anthropic_client:
+        return jsonify({'error': 'Insights unavailable — API key not configured.'})
+
+    db = get_db()
+
+    # Check cache (valid for 90 days)
+    cached = db.execute(
+        'SELECT insight_text, generated_at FROM insights_cache WHERE user_id=? AND month=? AND year=? AND chart_key=?',
+        (current_user.id, month, year, chart_key)
+    ).fetchone()
+    if cached:
+        generated_at = datetime.fromisoformat(cached['generated_at'])
+        if datetime.now(timezone.utc) - generated_at < timedelta(days=90):
+            return jsonify(json.loads(cached['insight_text']))
+
+    # Fetch all rows for trend context
+    all_rows = [dict(r) for r in db.execute(
+        'SELECT * FROM monthly_metrics WHERE user_id=? ORDER BY year, month',
+        (current_user.id,)
+    ).fetchall()]
+    sel_row = next((r for r in all_rows if r['month'] == month and r['year'] == year), None)
+    if not sel_row:
+        return jsonify({'error': 'No data found for this month.'})
+
+    prompt = _build_insights_prompt(chart_key, sel_row, all_rows)
+    if not prompt:
+        return jsonify({'error': f'Unknown chart key: {chart_key}'})
+
+    try:
+        message = anthropic_client.messages.create(
+            model='claude-sonnet-4-6',
+            max_tokens=1024,
+            temperature=0.3,
+            messages=[{'role': 'user', 'content': prompt}]
+        )
+        raw = message.content[0].text.strip()
+        if raw.startswith('```'):
+            raw = raw.split('```')[1]
+            if raw.startswith('json'):
+                raw = raw[4:]
+        insights = json.loads(raw)
+    except Exception:
+        return jsonify({'error': 'Could not generate insights. Please try again.'})
+
+    # Cache result
+    db.execute(
+        '''INSERT INTO insights_cache (user_id, month, year, chart_key, insight_text, generated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, month, year, chart_key) DO UPDATE SET
+           insight_text=excluded.insight_text, generated_at=excluded.generated_at''',
+        (current_user.id, month, year, chart_key,
+         json.dumps(insights), datetime.now(timezone.utc).isoformat())
+    )
+    db.commit()
+    return jsonify(insights)
 
 def _build_metrics_json(rows):
     """
