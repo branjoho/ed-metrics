@@ -1,7 +1,20 @@
 {% extends 'base.html' %}
 {% block content %}
-<div style="max-width:600px;margin:80px auto;padding:40px;">
-  <h2>Upload PDF</h2>
-  <p style="color:#64748b;">PDF upload coming soon.</p>
-</div>
+<main style="max-width:500px;margin:60px auto;padding:40px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;">
+  <h1 style="font-size:22px;font-weight:700;margin-bottom:8px;">Upload Monthly Metrics</h1>
+  <p style="color:#64748b;font-size:14px;margin-bottom:24px;">Upload your ED Provider Metrics PDF. Each upload adds or updates one month of data.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:8px;">
+      Select PDF
+      <input type="file" name="pdf" accept=".pdf,application/pdf" required
+             style="display:block;margin-top:6px;font-size:14px;">
+    </label>
+    <button type="submit" style="margin-top:16px;width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;">
+      Upload &amp; Parse
+    </button>
+  </form>
+  <p style="margin-top:16px;font-size:13px;text-align:center;color:#64748b;">
+    <a href="{{ url_for('dashboard') }}">Back to dashboard</a>
+  </p>
+</main>
 {% endblock %}
