@@ -1229,110 +1229,42 @@ function closeGoals() {
 applyAllGoals();
 
 // ============================================================
-// AUTO SUMMARY GENERATOR
+// OVERVIEW PERFORMANCE SUMMARY (LLM-generated)
 // ============================================================
-(function buildSummary() {
-  if (!D.returns72 || !D.readmits72 || !D.admissionRate || !D.dischargeLOS || !D.bedRequest || !D.ptsPerHour || !D.dischargeRate) return;
-
-  const n = selIdx;
-  const mo = months[n];
-
-  // Collect signals
-  const readmitRate   = D.readmits72.me[n];
-  const readmitPeers  = D.readmits72.peers[n];
-  const readmitPctile = D.readmits72.pctile ? D.readmits72.pctile[n] : null;
-  const returnRate    = D.returns72.me[n];
-  const returnPeers   = D.returns72.peers[n];
-  const admitRate     = D.admissionRate.me[n];
-  const admitPeers    = D.admissionRate.peers[n];
-  const dischLOS      = D.dischargeLOS.me[n];
-  const dischLOSpctile= D.dischargeLOS.pctile ? D.dischargeLOS.pctile[n] : null;
-  const bedReqPctile  = D.bedRequest.pctile ? D.bedRequest.pctile[n] : null;
-  const ptsPctile     = D.ptsPerHour.pctile ? D.ptsPerHour.pctile[n] : null;
-  const discRatePctile= D.dischargeRate.pctile ? D.dischargeRate.pctile[n] : null;
-
-  // Identify top strengths
-  const strengths = [];
-  if (dischLOSpctile !== null && dischLOSpctile < 25)
-    strengths.push(`discharge time faster than ${100-dischLOSpctile}% of peers (${dischLOS}h)`);
-  if (bedReqPctile !== null && bedReqPctile < 35)
-    strengths.push(`bed request time faster than ${100-bedReqPctile}% of peers`);
-  if (ptsPctile !== null && ptsPctile > 70)
-    strengths.push(`patient throughput in the top ${100-ptsPctile}% (${D.ptsPerHour.me[n]}/hr)`);
-  if (discRatePctile !== null && discRatePctile > 75)
-    strengths.push(`discharge rate of ${D.dischargeRate.me[n]}% vs peer avg ${D.dischargeRate.peers[n]}%`);
-
-  // Identify concerns
-  const concerns = [];
-  const readmitsElevatedMonths = D.readmits72.pctile ? D.readmits72.pctile.filter(p => p !== null && p > 65).length : 0;
-  if (readmitPctile !== null && readmitPctile > 65)
-    concerns.push(`readmit rate of ${readmitRate}% (peer avg ${readmitPeers}%) — worse than ${readmitPctile}% of peers`);
-  if (returnRate !== null && returnRate > 3.5)
-    concerns.push(`72-hr return rate of ${returnRate}% is above the 3.5% benchmark`);
-  const admitGap = admitPeers && admitRate !== null ? (admitPeers - admitRate).toFixed(1) : null;
-  if (admitRate !== null && admitPeers !== null && admitRate < admitPeers - 3)
-    concerns.push(`admission rate of ${admitRate}% runs ${admitGap} pp below peer avg (${admitPeers}%)`);
-
-  // Build summary sentence
-  let summary = '';
-  if (strengths.length > 0 && concerns.length > 0) {
-    const sStr = strengths.slice(0,2).join(' and ');
-    const cStr = concerns[0];
-    summary = `In ${mo}, your clearest strengths are <strong>${sStr}</strong>. The most pressing concern is a <strong>${cStr}</strong>`;
-    if (readmitsElevatedMonths >= 4 && concerns.some(c => c.includes('readmit')))
-      summary += ` — a pattern that has now appeared in ${readmitsElevatedMonths} of ${n+1} months.`;
-    else
-      summary += '.';
-  } else if (strengths.length > 0) {
-    summary = `In ${mo}, performance is strong across most metrics — notably <strong>${strengths.slice(0,2).join(' and ')}</strong>. No major concerns stand out this month.`;
-  } else {
-    summary = `In ${mo}, there are areas that need attention, including <strong>${concerns[0] || 'elevated safety metrics'}</strong>.`;
-  }
-
-  // Generate concrete improvement actions
-  const actions = [];
-
-  if (readmitPctile !== null && readmitPctile > 65 && admitRate !== null && admitPeers !== null && admitRate < admitPeers - 3) {
-    actions.push({
-      label: 'Priority action',
-      text: `Pull your ${mo} 72-hour readmission cases and identify the top 2–3 diagnoses. These patients were sent home and returned needing admission — understanding their diagnoses tells you exactly where to adjust your discharge threshold.`,
-    });
-  } else if (readmitPctile !== null && readmitPctile > 65) {
-    actions.push({
-      label: 'Priority action',
-      text: `Review your recent 72-hour readmissions. With a rate of ${readmitRate}% (peer avg ${readmitPeers}%), a focused chart review of 5–10 cases will likely reveal a pattern in diagnosis, time-of-day, or discharge plan gaps.`,
-    });
-  }
-
-  if (returnRate !== null && returnRate > 3.5) {
-    actions.push({
-      label: 'Follow-up action',
-      text: `Your 72-hr return rate of ${returnRate}% is above the 3.5% target. For your most common return diagnoses, verify whether discharge instructions include a specific return-precaution trigger (a symptom that should prompt the patient to come back) and a defined follow-up plan within 24–48 hours.`,
-    });
-  }
-
-  if (actions.length === 0) {
-    actions.push({
-      label: 'Maintain',
-      text: `Your safety and throughput metrics are tracking well this month. Keep monitoring the readmit rate trend — it has been the most variable metric over the past 6 months.`,
-    });
-  }
-
-  // Render
+function loadOverviewSummary() {
   const contentEl = document.getElementById('ins-content-overview');
   if (!contentEl) return;
-  let html = `<p id="summaryText" style="font-size:14px;color:var(--text);line-height:1.75;margin-bottom:14px;">${summary}</p>`;
-  html += '<div id="summaryActions" style="display:flex;flex-direction:column;gap:8px;">';
-  actions.forEach((a, i) => {
-    html += `<div style="display:flex;gap:10px;align-items:flex-start;">
-      <span style="flex-shrink:0;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;margin-top:1px;
-        background:${i===0?'#fee2e2':'#dbeafe'};color:${i===0?'#dc2626':'#1d4ed8'};">${a.label}</span>
-      <span style="font-size:13px;color:var(--muted);line-height:1.65;">${a.text}</span>
-    </div>`;
-  });
-  html += '</div>';
-  contentEl.innerHTML = html;
-})();
+
+  const selMonth = months[selIdx] || '';
+  const parts = selMonth.split(' ');
+  if (parts.length < 2) return;
+  const monthNum = new Date(Date.parse(parts[0] + ' 1')).getMonth() + 1;
+  const year = parts[1];
+
+  contentEl.innerHTML = '<p style="color:#64748b;font-size:13px;">Loading performance summary...</p>';
+
+  fetch(`/api/insights/overview/${monthNum}/${year}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        contentEl.innerHTML = `<p style="color:#64748b;font-size:13px;">${data.error}</p>`;
+        return;
+      }
+      const sevClass = {alert:'sev-alert', warn:'sev-warn', good:'sev-good', neutral:'sev-neutral'};
+      contentEl.innerHTML = data.map(item => `
+        <div class="insight-item">
+          <div class="insight-sev ${sevClass[item.severity] || 'sev-neutral'}"></div>
+          <div class="insight-text">${item.text}
+            ${item.tags && item.tags.length ? '<div class="insight-tags">' + item.tags.map(t => `<span class="itag itag-${t}">${t}</span>`).join('') + '</div>' : ''}
+          </div>
+        </div>
+      `).join('');
+    })
+    .catch(() => {
+      contentEl.innerHTML = `<p style="color:#dc2626;font-size:13px;">Failed to load summary. <button onclick="loadOverviewSummary()" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px;text-decoration:underline;">Retry</button></p>`;
+    });
+}
+loadOverviewSummary();
 
 // ============================================================
 // KPI CARD → CHART CLICK NAVIGATION

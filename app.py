@@ -185,7 +185,73 @@ CHART_CONTEXTS = {
     'overview':      ('Overall Performance Summary', 'discharge_los_pctile', None, None, 'High-level snapshot of this month\'s performance across all key metrics relative to peers.'),
 }
 
+def _build_overview_prompt(sel_row, all_rows):
+    this_month = f"{MONTH_NAMES[sel_row['month']]} {sel_row['year']}"
+
+    def v(field):
+        val = sel_row.get(field)
+        return '—' if val is None else val
+
+    snapshot = f"""Discharge LOS: {v('discharge_los_me')}h (peers: {v('discharge_los_peers')}h, pctile: {v('discharge_los_pctile')})
+Admitted LOS: {v('admit_los_me')}h (peers: {v('admit_los_peers')}h, pctile: {v('admit_los_pctile')})
+Admission Rate: {v('admission_rate_me')}% (peers: {v('admission_rate_peers')}%, pctile: {v('admission_rate_pctile')})
+Bed Request Time: {v('bed_request_me')} min (peers: {v('bed_request_peers')} min, pctile: {v('bed_request_pctile')})
+72-Hr Return Rate: {v('returns72_me')}% (peers: {v('returns72_peers')}%, pctile: {v('returns72_pctile')})
+72-Hr Readmit Rate: {v('readmits72_me')}% (peers: {v('readmits72_peers')}%, pctile: {v('readmits72_pctile')})
+Radiology Orders: {v('rad_orders_me')}% (peers: {v('rad_orders_peers')}%, pctile: {v('rad_orders_pctile')})
+Lab Orders: {v('lab_orders_me')}% (peers: {v('lab_orders_peers')}%, pctile: {v('lab_orders_pctile')})
+Patients/Hour: {v('pts_per_hour_me')} (peers: {v('pts_per_hour_peers')}, pctile: {v('pts_per_hour_pctile')})
+Discharge Rate: {v('discharge_rate_me')}% (peers: {v('discharge_rate_peers')}%, pctile: {v('discharge_rate_pctile')})
+ICU Rate: {v('icu_rate_me')}% (peers: {v('icu_rate_peers')}%, pctile: {v('icu_rate_pctile')})
+Total Patients: {v('patients')}
+ESI Mix: 1={v('esi1')}%, 2={v('esi2')}%, 3={v('esi3')}%, 4={v('esi4')}%, 5={v('esi5')}%
+Billing: L3={v('billing_level3')}%, L4={v('billing_level4')}%, L5={v('billing_level5')}%"""
+
+    trend_rows = []
+    for r in all_rows:
+        lbl = f"{MONTH_NAMES[r['month']]} {r['year']}"
+        trend_rows.append(
+            f"  {lbl}: readmit={r.get('readmits72_me')} (pctile {r.get('readmits72_pctile')}), "
+            f"return={r.get('returns72_me')} (pctile {r.get('returns72_pctile')}), "
+            f"dischLOS={r.get('discharge_los_me')} (pctile {r.get('discharge_los_pctile')}), "
+            f"pts/hr={r.get('pts_per_hour_me')} (pctile {r.get('pts_per_hour_pctile')})"
+        )
+    trend = '\n'.join(trend_rows)
+
+    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital.
+
+Generate an overall performance summary for {this_month}.
+
+Metric context:
+- Discharge LOS, bed request time, return/readmit rates: lower percentile = better than peers
+- Patients/hour, discharge rate: higher percentile = better
+- 72-hr readmit rate is the highest-severity safety signal
+- Low admission rate combined with high readmit rate is a concern (undertriaging)
+
+This month ({this_month}) — all metrics with peer comparisons and percentile rankings:
+{snapshot}
+
+Trend across all uploaded months (key indicators):
+{trend}
+
+Generate 3-5 concise insights that together form a complete performance summary. Include:
+- Top 1-2 strengths (use severity "good")
+- Top 1-2 concerns, prioritizing safety signals (use severity "alert" or "warn")
+- 1 specific, actionable recommendation (use severity "neutral")
+
+Each insight must have:
+- severity: one of "alert", "warn", "good", "neutral"
+- text: 1-2 sentences of plain text (no markdown)
+- tags: list of 0-2 tags from ["trend", "bench", "pos", "safety"]
+
+Return ONLY a valid JSON array, no markdown:
+[{{"severity": "...", "text": "...", "tags": [...]}}]"""
+
+
 def _build_insights_prompt(chart_key, sel_row, all_rows):
+    if chart_key == 'overview':
+        return _build_overview_prompt(sel_row, all_rows)
+
     ctx = CHART_CONTEXTS.get(chart_key)
     if not ctx:
         return None
@@ -479,4 +545,5 @@ def delete_month(month, year):
 if __name__ == '__main__':
     with app.app_context():
         init_db()
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5001))
+    app.run(debug=True, port=port)
