@@ -218,31 +218,35 @@ Billing: L3={v('billing_level3')}%, L4={v('billing_level4')}%, L5={v('billing_le
         )
     trend = '\n'.join(trend_rows)
 
-    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital.
+    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital and writing a performance summary for the provider.
 
-Generate an overall performance summary for {this_month}.
+WRITING STYLE — follow this exactly:
+- Every insight starts with a bold lead sentence in HTML: <strong>One punchy sentence that is the key finding.</strong>
+- Be specific: use exact numbers, percentile ranks, month names, and patient counts
+- Connect patterns across metrics when relevant (e.g. low admission rate + high readmit rate = undertriage signal)
+- Call out whether a finding is a structural pattern across months or a one-time event
+- Include one insight with a concrete, specific recommended action (e.g. "Pull your readmission cases and identify the top 2–3 diagnoses")
+- Speak directly to the provider as a professional — no hedging, no filler phrases like "it's worth noting"
+- Do not use markdown, bullet points, or asterisks — plain text only inside the "text" field (HTML bold tags are OK)
 
 Metric context:
-- Discharge LOS, bed request time, return/readmit rates: lower percentile = better than peers
+- Discharge LOS, bed request time, return/readmit rates: lower percentile = better
 - Patients/hour, discharge rate: higher percentile = better
 - 72-hr readmit rate is the highest-severity safety signal
-- Low admission rate combined with high readmit rate is a concern (undertriaging)
+- Low admission rate + high readmit rate together = strong undertriage signal (patients sent home who likely needed to stay)
 
-This month ({this_month}) — all metrics with peer comparisons and percentile rankings:
+This month ({this_month}):
 {snapshot}
 
 Trend across all uploaded months (key indicators):
 {trend}
 
-Generate 3-5 concise insights that together form a complete performance summary. Include:
-- Top 1-2 strengths (use severity "good")
-- Top 1-2 concerns, prioritizing safety signals (use severity "alert" or "warn")
-- 1 specific, actionable recommendation (use severity "neutral")
+Generate 3-5 insights covering: top 1-2 strengths, top 1-2 concerns (prioritize safety), and 1 specific action.
 
 Each insight must have:
-- severity: one of "alert", "warn", "good", "neutral"
-- text: 1-2 sentences of plain text (no markdown)
-- tags: list of 0-2 tags from ["trend", "bench", "pos", "safety"]
+- severity: "alert" (safety/urgent), "warn" (concern), "good" (strength), or "neutral" (context/action)
+- text: the insight text with a <strong>bold lead sentence</strong> followed by supporting detail
+- tags: 0-2 tags from ["trend", "bench", "pos", "safety"]
 
 Return ONLY a valid JSON array, no markdown:
 [{{"severity": "...", "text": "...", "tags": [...]}}]"""
@@ -271,7 +275,16 @@ def _build_insights_prompt(chart_key, sel_row, all_rows):
         trend_rows.append(f"  {lbl}: you={v}, peers={p}, pctile={pct}")
     trend = '\n'.join(trend_rows)
 
-    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital.
+    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital and writing chart-specific insights for the provider.
+
+WRITING STYLE — follow this exactly:
+- Every insight starts with a bold lead sentence in HTML: <strong>One punchy sentence that is the key finding.</strong>
+- Be specific: use exact numbers, percentile ranks, month names, and patient counts from the data
+- Call out whether something is a structural pattern across months or a one-time event
+- Connect to other metrics when relevant (e.g. if radiology is low, note whether return rate is also elevated)
+- Include one insight with a specific recommended action when there is a concern
+- Speak directly to the provider as a professional — no hedging, no filler phrases
+- Do not use markdown, bullet points, or asterisks — plain text only (HTML bold tags are OK)
 
 Chart: {chart_name}
 Context: {description}
@@ -284,10 +297,10 @@ This month ({this_month}):
 Trend across all uploaded months:
 {trend}
 
-Generate 2-4 concise insights. Each insight must have:
-- severity: one of "alert", "warn", "good", "neutral"
-- text: 1-2 sentences of plain text (no markdown)
-- tags: list of 0-2 tags from ["trend", "bench", "pos", "safety"]
+Generate 2-4 insights for this specific chart. Each insight must have:
+- severity: "alert" (safety/urgent), "warn" (concern), "good" (strength), or "neutral" (context/action)
+- text: insight text with a <strong>bold lead sentence</strong> followed by supporting detail
+- tags: 0-2 tags from ["trend", "bench", "pos", "safety"]
 
 Return ONLY a valid JSON array, no markdown:
 [{{"severity": "...", "text": "...", "tags": [...]}}]"""
@@ -336,8 +349,9 @@ def get_insights(chart_key, month, year):
             if raw.startswith('json'):
                 raw = raw[4:]
         insights = json.loads(raw)
-    except Exception:
-        return jsonify({'error': 'Could not generate insights. Please try again.'})
+    except Exception as e:
+        app.logger.error('Insights error for %s: %s', chart_key, e)
+        return jsonify({'error': f'Could not generate insights: {e}'})
 
     # Cache result
     db.execute(
