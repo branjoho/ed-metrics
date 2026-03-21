@@ -28,7 +28,7 @@ FAKE_METRICS = {
 def upload_month(client, metrics=FAKE_METRICS):
     with patch('app.parse_metrics', return_value=metrics):
         client.post('/upload', data={
-            'pdf': (io.BytesIO(b'%PDF-1.4 fake'), 'test.pdf', 'application/pdf')
+            'pdfs': (io.BytesIO(b'%PDF-1.4 fake'), 'test.pdf', 'application/pdf')
         }, content_type='multipart/form-data')
 
 def test_delete_month_removes_row(client):

@@ -402,43 +402,56 @@ def _upsert_metrics(user_id, metrics):
     db.execute('DELETE FROM insights_cache WHERE user_id = ?', (user_id,))
     db.commit()
 
+def _process_upload(file):
+    """Parse a single uploaded file. Returns metrics dict or raises ParseError / Exception."""
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    try:
+        file.save(tmp.name)
+        tmp.close()
+        return parse_metrics(tmp.name)
+    finally:
+        try:
+            tmp.close()
+        except Exception:
+            pass
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_page():
     if request.method == 'POST':
-        file = request.files.get('pdf')
-        if not file or file.filename == '':
-            flash('Please select a PDF file.', 'error')
+        files = request.files.getlist('pdfs')
+        files = [f for f in files if f and f.filename]
+        if not files:
+            flash('Please select at least one PDF file.', 'error')
             return render_template('upload.html')
-        if file.mimetype not in ALLOWED_MIME:
-            flash('Only PDF files are accepted.', 'error')
-            return render_template('upload.html')
-        tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-        try:
-            file.save(tmp.name)
-            tmp.close()
-            metrics = parse_metrics(tmp.name)
-        except ParseError as e:
-            flash(str(e), 'error')
-            return render_template('upload.html')
-        except Exception:
-            flash('PDF appears to be password-protected or corrupted.', 'error')
-            return render_template('upload.html')
-        finally:
+
+        last_month, last_year = None, None
+        for file in files:
+            if file.mimetype not in ALLOWED_MIME:
+                flash(f'{file.filename}: only PDF files are accepted.', 'error')
+                continue
             try:
-                tmp.close()  # no-op if already closed; guards against save() failure
+                metrics = _process_upload(file)
+            except ParseError as e:
+                flash(f'{file.filename}: {e}', 'error')
+                continue
             except Exception:
-                pass
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
-        if not metrics.get('month') or not metrics.get('year'):
-            flash('Could not determine month/year from this PDF.', 'error')
-            return render_template('upload.html')
-        _upsert_metrics(current_user.id, metrics)
-        flash(f"Month {metrics['month']}/{metrics['year']} uploaded successfully.", 'success')
-        return redirect(url_for('dashboard', month=metrics['month'], year=metrics['year']))
+                flash(f'{file.filename}: PDF appears to be password-protected or corrupted.', 'error')
+                continue
+            if not metrics.get('month') or not metrics.get('year'):
+                flash(f'{file.filename}: could not determine month/year. Rename to MM_YYYY format or ensure the PDF is unmodified.', 'error')
+                continue
+            _upsert_metrics(current_user.id, metrics)
+            flash(f"{MONTH_NAMES[metrics['month']]} {metrics['year']} uploaded.", 'success')
+            last_month, last_year = metrics['month'], metrics['year']
+
+        if last_month:
+            return redirect(url_for('dashboard', month=last_month, year=last_year))
+        return render_template('upload.html')
     return render_template('upload.html')
 
 @app.route('/api/months/<int:month>/<int:year>', methods=['DELETE'])

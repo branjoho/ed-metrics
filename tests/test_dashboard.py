@@ -28,7 +28,7 @@ def upload_month(client, metrics):
     import io
     with patch('app.parse_metrics', return_value=metrics):
         client.post('/upload', data={
-            'pdf': (io.BytesIO(b'%PDF-1.4 fake'), 'test.pdf', 'application/pdf')
+            'pdfs': (io.BytesIO(b'%PDF-1.4 fake'), 'test.pdf', 'application/pdf')
         }, content_type='multipart/form-data')
 
 def test_dashboard_empty_state(client):

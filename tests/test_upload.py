@@ -50,7 +50,7 @@ def test_upload_stores_metrics(client, app):
     register_user(client)
     login_user(client)
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
-        rv = client.post('/upload', data={'pdf': fake_pdf()},
+        rv = client.post('/upload', data={'pdfs': fake_pdf()},
                          content_type='multipart/form-data', follow_redirects=True)
     assert rv.status_code == 200
     with app.app_context():
@@ -65,10 +65,10 @@ def test_upload_upsert_overwrites(client, app):
     register_user(client)
     login_user(client)
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
-        client.post('/upload', data={'pdf': fake_pdf()}, content_type='multipart/form-data')
+        client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
     updated = {**FAKE_METRICS, 'patients': 999}
     with patch('app.parse_metrics', return_value=updated):
-        client.post('/upload', data={'pdf': fake_pdf()}, content_type='multipart/form-data')
+        client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
     with app.app_context():
         from app import get_db
         db = get_db()
@@ -81,7 +81,7 @@ def test_upload_bad_mime_rejected(client):
     register_user(client)
     login_user(client)
     rv = client.post('/upload', data={
-        'pdf': (io.BytesIO(b'not a pdf'), 'test.txt', 'text/plain')
+        'pdfs': (io.BytesIO(b'not a pdf'), 'test.txt', 'text/plain')
     }, content_type='multipart/form-data', follow_redirects=True)
     assert b'pdf' in rv.data.lower()
 
@@ -99,7 +99,7 @@ def test_upload_clears_insights_cache(client, app):
             "VALUES (?,2,2026,'dischargeLOS','[]','2026-01-01')", (user['id'],))
         db.commit()
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
-        client.post('/upload', data={'pdf': fake_pdf()}, content_type='multipart/form-data')
+        client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
     with app.app_context():
         from app import get_db
         db = get_db()
@@ -111,12 +111,12 @@ def test_upload_isolation(client, app):
     register_user(client, 'user1', 'password123')
     login_user(client, 'user1', 'password123')
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
-        client.post('/upload', data={'pdf': fake_pdf()}, content_type='multipart/form-data')
+        client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
     client.post('/logout')
     register_user(client, 'user2', 'password456')
     login_user(client, 'user2', 'password456')
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
-        client.post('/upload', data={'pdf': fake_pdf()}, content_type='multipart/form-data')
+        client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
     with app.app_context():
         from app import get_db
         db = get_db()

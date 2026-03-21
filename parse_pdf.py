@@ -45,6 +45,23 @@ def _extract_month_year_from_filename(pdf_path):
     return None, None
 
 
+def _extract_month_year_from_text(pages):
+    """
+    Fallback: extract month/year from the date range on the throughput page.
+    Looks for patterns like '[8/29/2025 - 9/29/2025]' and returns the end date's month/year.
+    """
+    text = pages[2] if len(pages) > 2 else ''
+    # Date range pattern: [M/DD/YYYY - M/DD/YYYY]
+    m = re.search(r'\[\d{1,2}/\d{2}/\d{4}\s*-\s*(\d{1,2})/\d{2}/(\d{4})\]', text)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    # Also try bare end date after "End Date"
+    m = re.search(r'End Date\s*\n(\d{1,2})/\d{2}/(\d{4})', text)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    return None, None
+
+
 def _get_full_text(pdf_path):
     """Return concatenated text from all pages, or raise on open failure."""
     try:
@@ -83,9 +100,11 @@ def parse_metrics(pdf_path: str) -> dict:
         raise ParseError("PDF is missing expected metric pages")
 
     # ----------------------------------------------------------------
-    # Month / year from filename
+    # Month / year — filename first, PDF text as fallback
     # ----------------------------------------------------------------
     month, year = _extract_month_year_from_filename(pdf_path)
+    if not month or not year:
+        month, year = _extract_month_year_from_text(pages)
 
     # ----------------------------------------------------------------
     # Patients — from admission rate fraction "(14/125)" on page 3 or 7
