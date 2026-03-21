@@ -179,6 +179,10 @@ CHART_CONTEXTS = {
     'ptsPerHour':    ('Patients Per Hour', 'pts_per_hour_me', 'pts_per_hour_peers', 'pts_per_hour_pctile', 'New patients taken on per hour. Higher = more productive.'),
     'dischargeRate': ('Discharge Rate (%)', 'discharge_rate_me', 'discharge_rate_peers', 'discharge_rate_pctile', 'Percent of patients discharged (not admitted). Higher = better for throughput.'),
     'volume':        ('Patients Seen Per Month', 'patients', None, None, 'Total patients you were first attending on.'),
+    'radByDispo':    ('Radiology by Disposition', 'rad_admit_me', 'rad_admit_peers', None, 'Radiology ordering split by admitted vs discharged patients. Admitted patients typically require more imaging.'),
+    'esiChart':      ('ESI Acuity Mix', 'esi3', None, None, 'Distribution across ESI levels: 1=critical, 2=emergent, 3=urgent, 4=semi-urgent, 5=non-urgent. ESI-3 is typically the largest group.'),
+    'pctTable':      ('Overall Percentile Rankings', 'discharge_los_pctile', None, None, 'Summary of all metric percentile rankings. Lower percentile = better for time/rate metrics; higher = better for productivity.'),
+    'overview':      ('Overall Performance Summary', 'discharge_los_pctile', None, None, 'High-level snapshot of this month\'s performance across all key metrics relative to peers.'),
 }
 
 def _build_insights_prompt(chart_key, sel_row, all_rows):

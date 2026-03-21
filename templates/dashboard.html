@@ -754,16 +754,16 @@
 
   <!-- BILLING -->
   <section id="billing">
-    <h2>Billing <span class="badge">Partial Data</span></h2>
+    <h2>Billing</h2>
     <div class="data-notice">
-      <strong>Note on data availability:</strong> The billing page in these PDFs was filtered to a different provider in 5 of 6 months. Only the February 2026 report shows your billing data clearly. WRVU and physician charges values are rendered as charts in the PDFs — the actual numbers can't be extracted without a direct Tableau export or new PDFs generated with your name selected in the PROFEE view.
+      <strong>Note:</strong> WRVU and physician charges are rendered as charts in the PDFs and cannot be extracted as text. Only visit-level counts (Level 3–5) are parsed from PDFs.
     </div>
     <div class="chart-grid">
       <div class="chart-card">
         <div class="card-header">
           <div class="card-header-text">
-            <div class="chart-title">Visit Complexity Level — Feb 2026</div>
-            <div class="chart-sub">32 billed visits. Level 3–5 = increasing complexity. Most of your visits billed as Level 4.</div>
+            <div class="chart-title" id="billingChartTitle">Visit Complexity Distribution</div>
+            <div class="chart-sub">Level 3–5 = increasing complexity of billed visits.</div>
           </div>
         </div>
         <div class="chart-wrap"><canvas id="billingDist"></canvas></div>
@@ -991,19 +991,29 @@ if (D.esi) {
   });
 }
 
-// Billing
-new Chart(document.getElementById('billingDist').getContext('2d'), {
-  type:'bar',
-  data:{labels:['Level 2','Level 3','Level 4','Level 5'],datasets:[{
-    label:'Feb 2026',data:[0,15.6,59.4,25.0],borderRadius:6,
-    backgroundColor:['rgba(22,163,74,0.5)','rgba(37,99,235,0.7)','rgba(124,58,237,0.7)','rgba(217,119,6,0.7)'],
-  }]},
-  options:{
-    responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{display:false},tooltip:{...tip,callbacks:{label:ctx=>` ${ctx.raw}% of visits`}}},
-    scales:{x:{grid:{color:gc}},y:{beginAtZero:true,max:75,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},title:{display:true,text:'% of Billed Visits',color:'#64748b',font:{size:11}}}}
-  }
-});
+// Billing — use selected month's data from DB
+const bL3 = D.billing && D.billing.level3[selIdx] != null ? D.billing.level3[selIdx] : null;
+const bL4 = D.billing && D.billing.level4[selIdx] != null ? D.billing.level4[selIdx] : null;
+const bL5 = D.billing && D.billing.level5[selIdx] != null ? D.billing.level5[selIdx] : null;
+const bTotal = (bL3 || 0) + (bL4 || 0) + (bL5 || 0);
+if (bTotal > 0) {
+  const bPct = [v => 0, v => parseFloat((bL3/bTotal*100).toFixed(1)), v => parseFloat((bL4/bTotal*100).toFixed(1)), v => parseFloat((bL5/bTotal*100).toFixed(1))].map(f => f());
+  document.getElementById('billingChartTitle').textContent = `Visit Complexity — ${months[selIdx]}`;
+  new Chart(document.getElementById('billingDist').getContext('2d'), {
+    type:'bar',
+    data:{labels:['Level 2','Level 3','Level 4','Level 5'],datasets:[{
+      label:months[selIdx], data:bPct, borderRadius:6,
+      backgroundColor:['rgba(22,163,74,0.5)','rgba(37,99,235,0.7)','rgba(124,58,237,0.7)','rgba(217,119,6,0.7)'],
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...tip,callbacks:{label:ctx=>` ${ctx.raw}% of visits`}}},
+      scales:{x:{grid:{color:gc}},y:{beginAtZero:true,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},title:{display:true,text:'% of Billed Visits',color:'#64748b',font:{size:11}}}}
+    }
+  });
+} else {
+  document.getElementById('billingDist').closest('.chart-wrap').innerHTML = '<p style="color:#64748b;font-size:13px;padding:20px;">Billing counts not available for this month.</p>';
+}
 
 // ============================================================
 // PERCENTILE TABLE

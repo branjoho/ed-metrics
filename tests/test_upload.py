@@ -1,10 +1,15 @@
 import io
+import os
 import pytest
 from unittest.mock import patch
 import sqlite3
 from parse_pdf import parse_metrics, ParseError
 
 REAL_PDF = "/Users/branjoho/Documents/Attending metrics/2_2026 - ED Provider Metrics.pdf"
+requires_real_pdf = pytest.mark.skipif(
+    not os.path.exists(REAL_PDF),
+    reason="Real PDF fixture not available on this machine"
+)
 
 FAKE_METRICS = {
     'month': 2, 'year': 2026, 'patients': 125,
@@ -119,16 +124,19 @@ def test_upload_isolation(client, app):
         assert len(rows) == 2
         assert rows[0]['user_id'] != rows[1]['user_id']
 
+@requires_real_pdf
 def test_parse_returns_dict():
     result = parse_metrics(REAL_PDF)
     assert isinstance(result, dict)
 
+@requires_real_pdf
 def test_parse_required_keys():
     result = parse_metrics(REAL_PDF)
     required = ['month', 'year', 'patients', 'discharge_los_me', 'discharge_los_peers']
     for key in required:
         assert key in result, f"Missing key: {key}"
 
+@requires_real_pdf
 def test_parse_numeric_values():
     result = parse_metrics(REAL_PDF)
     assert isinstance(result['patients'], (int, type(None)))
