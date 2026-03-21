@@ -158,10 +158,90 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+def _build_metrics_json(rows):
+    """
+    Convert list of monthly_metrics rows (sorted by year, month) into the
+    const D = {...} structure expected by the dashboard Chart.js code.
+    """
+    def col(field):
+        return [r[field] for r in rows]
+
+    return {
+        'patients':      {'me': col('patients')},
+        'dischargeLOS':  {'me': col('discharge_los_me'), 'peers': col('discharge_los_peers'), 'pctile': col('discharge_los_pctile')},
+        'admitLOS':      {'me': col('admit_los_me'), 'peers': col('admit_los_peers'), 'pctile': col('admit_los_pctile')},
+        'admissionRate': {'me': col('admission_rate_me'), 'peers': col('admission_rate_peers'), 'pctile': col('admission_rate_pctile')},
+        'bedRequest':    {'me': col('bed_request_me'), 'peers': col('bed_request_peers'), 'pctile': col('bed_request_pctile')},
+        'returns72':     {'me': col('returns72_me'), 'peers': col('returns72_peers'), 'pctile': col('returns72_pctile')},
+        'readmits72':    {'me': col('readmits72_me'), 'peers': col('readmits72_peers'), 'pctile': col('readmits72_pctile')},
+        'radOrders':     {'me': col('rad_orders_me'), 'peers': col('rad_orders_peers'), 'pctile': col('rad_orders_pctile')},
+        'labOrders':     {'me': col('lab_orders_me'), 'peers': col('lab_orders_peers'), 'pctile': col('lab_orders_pctile')},
+        'ptsPerHour':    {'me': col('pts_per_hour_me'), 'peers': col('pts_per_hour_peers'), 'pctile': col('pts_per_hour_pctile')},
+        'dischargeRate': {'me': col('discharge_rate_me'), 'peers': col('discharge_rate_peers'), 'pctile': col('discharge_rate_pctile')},
+        'icuRate':       {'me': col('icu_rate_me'), 'peers': col('icu_rate_peers'), 'pctile': col('icu_rate_pctile')},
+        'radByDispo': {
+            'admitMe': col('rad_admit_me'), 'admitPeers': col('rad_admit_peers'),
+            'discMe': col('rad_disc_me'), 'discPeers': col('rad_disc_peers'),
+        },
+        'esi': {
+            'esi1': col('esi1'), 'esi2': col('esi2'), 'esi3': col('esi3'),
+            'esi4': col('esi4'), 'esi5': col('esi5'),
+        },
+        'billing': {
+            'level3': col('billing_level3'), 'level4': col('billing_level4'),
+            'level5': col('billing_level5'),
+        },
+    }
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', metrics_json={}, months=[], has_data=False, month_list=[], sel_idx=0, selected=None, username=current_user.username)
+    db = get_db()
+    rows = db.execute(
+        'SELECT * FROM monthly_metrics WHERE user_id = ? ORDER BY year, month',
+        (current_user.id,)
+    ).fetchall()
+    rows = [dict(r) for r in rows]
+
+    month_labels = [
+        f"{MONTH_NAMES[r['month']]} {r['year']}" for r in rows
+    ]
+    month_list = [{'month': r['month'], 'year': r['year'], 'label': lbl}
+                  for r, lbl in zip(rows, month_labels)]
+
+    # Determine selected month index
+    sel_month = request.args.get('month', type=int)
+    sel_year = request.args.get('year', type=int)
+    sel_idx = len(rows) - 1 if rows else 0  # default to most recent; 0 if empty
+    if sel_month and sel_year:
+        for i, r in enumerate(rows):
+            if r['month'] == sel_month and r['year'] == sel_year:
+                sel_idx = i
+                break
+
+    metrics_json = _build_metrics_json(rows) if rows else {}
+    selected = dict(rows[sel_idx]) if rows else None
+    if selected:
+        # Add derived/display fields not stored in the DB
+        selected.setdefault('patients_peers', None)
+        selected.setdefault('patients_pctile', None)
+        selected['month_label'] = (
+            f"{MONTH_NAMES[selected['month']]} {selected['year']}"
+        )
+
+    return render_template(
+        'dashboard.html',
+        has_data=bool(rows),
+        metrics_json=metrics_json,
+        month_labels=month_labels,
+        month_list=month_list,
+        sel_idx=sel_idx,
+        selected=selected,
+        username=current_user.username,
+    )
 
 ALLOWED_MIME = {'application/pdf'}
 
