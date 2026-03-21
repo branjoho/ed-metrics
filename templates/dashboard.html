@@ -811,7 +811,7 @@
 const months = {{ month_labels | tojson | safe }};
 const S = months.map(m => m.split(' ')[0]);
 const D = {{ metrics_json | tojson | safe }};
-const selIdx = {{ sel_idx }};
+const selIdx = {{ sel_idx | tojson }};
 
 // Rolling 3-month average
 function roll3(arr) {
