@@ -60,6 +60,18 @@ CREATE TABLE IF NOT EXISTS monthly_metrics (
     UNIQUE(user_id, month, year)
 );
 
+CREATE TABLE IF NOT EXISTS chart_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    month INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    chart_key TEXT NOT NULL,
+    note_text TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, month, year, chart_key)
+);
+
 CREATE TABLE IF NOT EXISTS insights_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
@@ -218,38 +230,46 @@ Billing: L3={v('billing_level3')}%, L4={v('billing_level4')}%, L5={v('billing_le
         )
     trend = '\n'.join(trend_rows)
 
-    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital and writing a performance summary for the provider.
+    return f"""You are writing a monthly performance summary for an emergency medicine physician at Seattle Children's Hospital.
 
-WRITING STYLE — follow this exactly:
-- Every insight starts with a bold lead sentence in HTML: <strong>One punchy sentence that is the key finding.</strong>
-- Be specific: use exact numbers, percentile ranks, month names, and patient counts
-- Connect patterns across metrics when relevant (e.g. low admission rate + high readmit rate = undertriage signal)
-- Call out whether a finding is a structural pattern across months or a one-time event
-- Include one insight with a concrete, specific recommended action (e.g. "Pull your readmission cases and identify the top 2–3 diagnoses")
-- Speak directly to the provider as a professional — no hedging, no filler phrases like "it's worth noting"
-- Do not use markdown, bullet points, or asterisks — plain text only inside the "text" field (HTML bold tags are OK)
+FORMAT — every insight must follow this exact pattern:
+<strong>One punchy headline sentence that states the key finding.</strong> One or two supporting sentences with specific numbers (e.g. "faster than 87% of peers", "4 of 6 months", "peer avg 1.2%").
+
+EXAMPLES of the correct style:
+- Good: <strong>Your discharge time is your clearest strength this month.</strong> At 3.47h you were faster than 87% of your peers — the best percentile you've hit all year.
+- Warn: <strong>Your readmit rate has been above the 65th percentile in 4 of 6 months.</strong> In {this_month} it was 1.6% vs a peer average of 1.2%. A patient who returns within 3 days and gets admitted very likely needed to stay the first time.
+- Alert: <strong>Low admission rate combined with a high readmit rate is an undertriage signal.</strong> You admitted 6 points fewer patients than peers while readmitting at the 75th percentile — some patients sent home likely needed to stay.
+- Neutral: <strong>Action: pull your {this_month} 72-hour readmission cases.</strong> Identify the top 2–3 diagnoses — that's the fastest way to find where your discharge threshold needs adjustment.
+
+STRUCTURE — return exactly 3-4 insights in this order:
+1. Top strength ("good") — best metric vs peers this month, with the number
+2. Most pressing concern ("alert" or "warn") — prioritize safety signals (readmit > return > throughput), with exact values
+3. Supporting context ("warn" or "neutral") — second concern or pattern across months, if meaningful
+4. One specific action ("neutral") — what to do about the concern; must be concrete, not generic
+
+RULES:
+- If readmit rate > 65th pct AND admission rate < peers, flag the undertriage combination explicitly
+- Use exact numbers from the data — percentile, your value, peer value
+- No filler: no "it's worth noting", "overall", "importantly"
+- HTML bold tags only — no markdown asterisks, no bullet points in the text field
 
 Metric context:
-- Discharge LOS, bed request time, return/readmit rates: lower percentile = better
-- Patients/hour, discharge rate: higher percentile = better
+- Lower percentile = better: Discharge LOS, Admitted LOS, Bed Request, Return Rate, Readmit Rate
+- Higher percentile = better: Patients/Hour, Discharge Rate
 - 72-hr readmit rate is the highest-severity safety signal
-- Low admission rate + high readmit rate together = strong undertriage signal (patients sent home who likely needed to stay)
 
-This month ({this_month}):
+{this_month} data:
 {snapshot}
 
-Trend across all uploaded months (key indicators):
+Trend (for context — focus summary on {this_month}):
 {trend}
 
-Generate 3-5 insights covering: top 1-2 strengths, top 1-2 concerns (prioritize safety), and 1 specific action.
-
 Each insight must have:
-- severity: "alert" (safety/urgent), "warn" (concern), "good" (strength), or "neutral" (context/action)
-- text: the insight text with a <strong>bold lead sentence</strong> followed by supporting detail
-- tags: 0-2 tags from ["trend", "bench", "pos", "safety"]
+- severity: "alert", "warn", "good", or "neutral"
+- text: formatted as shown above with <strong>bold headline.</strong> followed by supporting detail
 
 Return ONLY a valid JSON array, no markdown:
-[{{"severity": "...", "text": "...", "tags": [...]}}]"""
+[{{"severity": "...", "text": "..."}}]"""
 
 
 def _build_insights_prompt(chart_key, sel_row, all_rows):
@@ -275,35 +295,32 @@ def _build_insights_prompt(chart_key, sel_row, all_rows):
         trend_rows.append(f"  {lbl}: you={v}, peers={p}, pctile={pct}")
     trend = '\n'.join(trend_rows)
 
-    return f"""You are analyzing ED provider performance data from Seattle Children's Hospital and writing chart-specific insights for the provider.
+    return f"""You are writing chart insights for an emergency medicine physician at Seattle Children's Hospital.
 
-WRITING STYLE — follow this exactly:
-- Every insight starts with a bold lead sentence in HTML: <strong>One punchy sentence that is the key finding.</strong>
-- Be specific: use exact numbers, percentile ranks, month names, and patient counts from the data
-- Call out whether something is a structural pattern across months or a one-time event
-- Connect to other metrics when relevant (e.g. if radiology is low, note whether return rate is also elevated)
-- Include one insight with a specific recommended action when there is a concern
-- Speak directly to the provider as a professional — no hedging, no filler phrases
-- Do not use markdown, bullet points, or asterisks — plain text only (HTML bold tags are OK)
+FORMAT — every insight must follow this pattern:
+<strong>One punchy headline that states the key finding.</strong> 1-2 supporting sentences with specific numbers.
+
+EXAMPLES of the correct style:
+- <strong>This is a structural pattern, not a one-bad-month problem.</strong> You've been above the 65th percentile in 4 of 6 months. Peers average 0.6–1.2%; your range has been 1.0–1.7% in affected months.
+- <strong>You're in the top 10% for throughput in your best months.</strong> This is a genuine strength — you take on patients quickly.
+- <strong>November was your worst month across the whole dataset.</strong> At 5.8% returns it was worse than 90% of peers and nearly double the 3.5% target.
+- <strong>Action: pull your readmission cases and look for the top 2–3 diagnoses.</strong> A focused chart review of 5–10 cases will reveal whether there's a pattern in diagnosis, time-of-day, or discharge plan gaps.
 
 Chart: {chart_name}
 Context: {description}
 
-This month ({this_month}):
-- Provider value: {me_val}
-- Peer average: {peers_val}
-- Percentile: {pctile_val}
-
-Trend across all uploaded months:
+{this_month}: you={me_val}, peers={peers_val}, percentile={pctile_val}
+Trend:
 {trend}
 
-Generate 2-4 insights for this specific chart. Each insight must have:
-- severity: "alert" (safety/urgent), "warn" (concern), "good" (strength), or "neutral" (context/action)
-- text: insight text with a <strong>bold lead sentence</strong> followed by supporting detail
-- tags: 0-2 tags from ["trend", "bench", "pos", "safety"]
+Write 2-3 insights for this chart. Note whether this month is a pattern or a one-time event. Include a specific action if there is a concern.
+
+Each insight must have:
+- severity: "alert" (urgent), "warn" (concern), "good" (strength), "neutral" (context/action)
+- text: <strong>bold headline.</strong> followed by supporting detail with exact numbers
 
 Return ONLY a valid JSON array, no markdown:
-[{{"severity": "...", "text": "...", "tags": [...]}}]"""
+[{{"severity": "...", "text": "..."}}]"""
 
 @app.route('/api/insights/<chart_key>/<int:month>/<int:year>')
 @login_required
@@ -551,6 +568,53 @@ def delete_month(month, year):
     db.execute(
         'DELETE FROM monthly_metrics WHERE user_id=? AND month=? AND year=?',
         (current_user.id, month, year)
+    )
+    db.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/notes', methods=['GET'])
+@login_required
+def get_all_notes():
+    db = get_db()
+    rows = db.execute(
+        'SELECT month, year, chart_key, note_text, updated_at FROM chart_notes WHERE user_id=?',
+        (current_user.id,)
+    ).fetchall()
+    notes = {}
+    for r in rows:
+        key = f"{r['chart_key']}_{r['month']}_{r['year']}"
+        notes[key] = {'month': r['month'], 'year': r['year'], 'chart_key': r['chart_key'],
+                      'text': r['note_text'], 'updated_at': r['updated_at']}
+    return jsonify(notes)
+
+
+@app.route('/api/notes/<chart_key>/<int:month>/<int:year>', methods=['POST'])
+@login_required
+def save_note(chart_key, month, year):
+    text = (request.json or {}).get('text', '').strip()
+    if not text:
+        return jsonify({'error': 'Note text is required'}), 400
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        '''INSERT INTO chart_notes (user_id, month, year, chart_key, note_text, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, month, year, chart_key) DO UPDATE SET
+           note_text=excluded.note_text, updated_at=excluded.updated_at''',
+        (current_user.id, month, year, chart_key, text, now, now)
+    )
+    db.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/notes/<chart_key>/<int:month>/<int:year>', methods=['DELETE'])
+@login_required
+def delete_note(chart_key, month, year):
+    db = get_db()
+    db.execute(
+        'DELETE FROM chart_notes WHERE user_id=? AND month=? AND year=? AND chart_key=?',
+        (current_user.id, month, year, chart_key)
     )
     db.commit()
     return jsonify({'ok': True})

@@ -123,12 +123,6 @@
   .sev-neutral { background: #cbd5e1; }
   .insight-text { font-size: 13px; color: var(--muted); line-height: 1.65; }
   .insight-text strong { color: var(--text); }
-  .insight-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
-  .itag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 2px 7px; border-radius: 99px; }
-  .itag-trend  { background: #dbeafe; color: #1d4ed8; }
-  .itag-bench  { background: #ede9fe; color: #6d28d9; }
-  .itag-pos    { background: #dcfce7; color: var(--green); }
-  .itag-safety { background: #fee2e2; color: var(--red); }
 
   /* PERCENTILE TABLE */
   .pct-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -422,7 +416,7 @@
             <div class="chart-sub">How long from arrival to discharge. Lower = faster.</div>
           </div>
           <button class="insight-btn" data-target="ins-dischargeLOS" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-warn"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -446,7 +440,7 @@
             <div class="chart-sub">Time from arrival to leaving the ED for an inpatient bed. Lower = better.</div>
           </div>
           <button class="insight-btn" data-target="ins-admitLOS" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-warn"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -470,7 +464,7 @@
             <div class="chart-sub">How quickly you initiate a bed request after the patient arrives.</div>
           </div>
           <button class="insight-btn" data-target="ins-bedRequest" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-warn"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -494,7 +488,7 @@
             <div class="chart-sub">What percent of your patients get admitted. You run consistently lower than peers.</div>
           </div>
           <button class="insight-btn" data-target="ins-admissionRate" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-alert"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -518,7 +512,7 @@
             <div class="chart-sub">How often you ordered imaging — split by patients who were admitted vs discharged.</div>
           </div>
           <button class="insight-btn" data-target="ins-radByDispo" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-warn"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -568,7 +562,7 @@
             <div class="chart-sub">Unplanned return visits within 3 days.</div>
           </div>
           <button class="insight-btn" data-target="ins-returns72" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-alert"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -592,7 +586,7 @@
             <div class="chart-sub">Returns that resulted in inpatient admission — the highest-severity safety signal.</div>
           </div>
           <button class="insight-btn" data-target="ins-readmits72" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-alert"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -616,7 +610,7 @@
             <div class="chart-sub">How often your admitted patients required intensive care.</div>
           </div>
           <button class="insight-btn" data-target="ins-icuRate" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-warn"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -666,7 +660,7 @@
             <div class="chart-sub">How many new patients you took on per hour. Higher = more productive.</div>
           </div>
           <button class="insight-btn" data-target="ins-ptsPerHour" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-good"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -690,7 +684,7 @@
             <div class="chart-sub">What percent of your patients went home (not admitted). Higher is generally better for throughput.</div>
           </div>
           <button class="insight-btn" data-target="ins-dischargeRate" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-good"></span>Insights
+            <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
@@ -736,7 +730,7 @@
           <div class="chart-sub">Where you stand vs peers each month. Green = better than most peers. Red = worse than most peers.</div>
         </div>
         <button class="insight-btn" data-target="ins-pctTable" onclick="toggleInsight(this)">
-          <span class="sev-dot sev-warn"></span>Key Points
+          <span class="sev-dot sev-neutral"></span>Key Points
           <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </button>
       </div>
@@ -828,7 +822,21 @@ Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
 Chart.defaults.font.size = 12;
 
 const gc = 'rgba(0,0,0,0.07)';
-const tip = { backgroundColor:'#1e293b', borderColor:'rgba(37,99,235,0.25)', borderWidth:1, titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:11, cornerRadius:7 };
+const tip = {
+  backgroundColor:'#1e293b', borderColor:'rgba(37,99,235,0.25)', borderWidth:1,
+  titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:11, cornerRadius:7,
+  callbacks: {
+    afterBody: function(items) {
+      if (!items.length) return '';
+      const chartKey = items[0].chart.canvas.id;
+      const nk = typeof noteKey === 'function' ? noteKey(chartKey, items[0].dataIndex) : null;
+      if (nk && typeof _chartNotes !== 'undefined' && _chartNotes[nk.key]) {
+        return '\n📝 ' + _chartNotes[nk.key].text;
+      }
+      return '';
+    }
+  }
+};
 
 function baseOpts(yLabel='', beginZero=false) {
   return {
@@ -1094,10 +1102,14 @@ function toggleInsight(btn) {
             <div class="insight-item">
               <div class="insight-sev ${sevClass[item.severity] || 'sev-neutral'}"></div>
               <div class="insight-text">${item.text}
-                ${item.tags && item.tags.length ? '<div class="insight-tags">' + item.tags.map(t => `<span class="itag itag-${t}">${t}</span>`).join('') + '</div>' : ''}
               </div>
             </div>
           `).join('');
+          // Update button dot: red > orange > green > grey
+          const sevRank = {alert:3, warn:2, good:1, neutral:0};
+          const worst = data.reduce((w, item) => sevRank[item.severity] > sevRank[w] ? item.severity : w, 'neutral');
+          const dot = btn.querySelector('.sev-dot');
+          if (dot) { dot.className = 'sev-dot ' + (sevClass[worst] || 'sev-neutral'); }
         })
         .catch(() => {
           contentEl.innerHTML = `<p style="color:#dc2626;font-size:13px;">Failed to load insights. <button onclick="_loadedInsights.delete('${chartKey}');toggleInsight(document.querySelector('[data-target=ins-${chartKey}]'))" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px;text-decoration:underline;">Retry</button></p>`;
@@ -1105,6 +1117,54 @@ function toggleInsight(btn) {
     }
   }
 }
+
+// ============================================================
+// PRELOAD ALL INSIGHTS (dot colors + KPI card colors + content ready on click)
+// ============================================================
+(function preloadInsights() {
+  const selMonth = months[selIdx] || '';
+  const parts = selMonth.split(' ');
+  if (parts.length < 2) return;
+  const monthNum = new Date(Date.parse(parts[0] + ' 1')).getMonth() + 1;
+  const year = parts[1];
+  const sevClass = {alert:'sev-alert', warn:'sev-warn', good:'sev-good', neutral:'sev-neutral'};
+  const sevRank = {alert:3, warn:2, good:1, neutral:0};
+  const sevColor = {alert:'#dc2626', warn:'#d97706', good:'#16a34a', neutral:'#94a3b8'};
+
+  // Map chart keys to KPI card IDs
+  const chartToKpi = {};
+  Object.entries(kpiTargets).forEach(([kpiId, chartId]) => { chartToKpi[chartId] = kpiId; });
+
+  document.querySelectorAll('.insight-btn').forEach(btn => {
+    const chartKey = (btn.dataset.target || '').replace('ins-', '');
+    if (!chartKey || _loadedInsights.has(chartKey)) return;
+
+    fetch(`/api/insights/${chartKey}/${monthNum}/${year}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return;
+        _loadedInsights.add(chartKey);
+        const contentEl = document.getElementById('ins-content-' + chartKey);
+        if (contentEl) {
+          contentEl.innerHTML = data.map(item => `
+            <div class="insight-item">
+              <div class="insight-sev ${sevClass[item.severity] || 'sev-neutral'}"></div>
+              <div class="insight-text">${item.text}</div>
+            </div>
+          `).join('');
+        }
+        const worst = data.reduce((w, item) => sevRank[item.severity] > sevRank[w] ? item.severity : w, 'neutral');
+        const dot = btn.querySelector('.sev-dot');
+        if (dot) dot.className = 'sev-dot ' + (sevClass[worst] || 'sev-neutral');
+
+        // Update KPI card color to match insight severity
+        const kpiId = chartToKpi[chartKey];
+        const kpiCard = kpiId ? document.getElementById(kpiId) : null;
+        if (kpiCard) kpiCard.style.setProperty('--color', sevColor[worst] || '#94a3b8');
+      })
+      .catch(() => {});
+  });
+})();
 
 // ============================================================
 // GOAL PANEL
@@ -1320,7 +1380,143 @@ window.addEventListener('scroll', () => {
 
 // Expose charts on window for external access
 window.charts = charts;
+
+// ============================================================
+// QI NOTES — click data points to add/edit notes
+// ============================================================
+const _chartNotes = {};  // key: "chartKey_month_year" → {text, updated_at}
+
+// Load all notes on startup
+fetch('/api/notes')
+  .then(r => r.json())
+  .then(data => {
+    Object.assign(_chartNotes, data);
+    // Add note markers to charts
+    Object.keys(charts).forEach(chartKey => addNoteMarkers(chartKey));
+  })
+  .catch(() => {});
+
+function noteKey(chartKey, idx) {
+  const mo = months[idx] || '';
+  const parts = mo.split(' ');
+  if (parts.length < 2) return null;
+  const monthNum = new Date(Date.parse(parts[0] + ' 1')).getMonth() + 1;
+  return { key: `${chartKey}_${monthNum}_${parts[1]}`, month: monthNum, year: parseInt(parts[1]) };
+}
+
+function addNoteMarkers(chartKey) {
+  const chart = charts[chartKey];
+  if (!chart || !chart.data.datasets[0]) return;
+  const ds0 = chart.data.datasets[0];
+  // Set point styles: diamond marker for notes, circle for normal
+  const styles = [], radii = [], colors = [];
+  for (let i = 0; i < (ds0.data || []).length; i++) {
+    const nk = noteKey(chartKey, i);
+    const hasNote = nk && _chartNotes[nk.key];
+    styles.push(hasNote ? 'rectRot' : 'circle');
+    radii.push(hasNote ? 7 : 4);
+    colors.push(hasNote ? '#f59e0b' : ds0.borderColor);
+  }
+  ds0.pointStyle = styles;
+  ds0.pointRadius = radii;
+  ds0.pointBackgroundColor = colors;
+  chart.update('none');
+}
+
+function openNoteModal(chartKey, idx) {
+  const nk = noteKey(chartKey, idx);
+  if (!nk) return;
+  const existing = _chartNotes[nk.key];
+  const modal = document.getElementById('noteModal');
+  const title = document.getElementById('noteModalTitle');
+  const textarea = document.getElementById('noteModalText');
+  const deleteBtn = document.getElementById('noteDeleteBtn');
+
+  title.textContent = `QI Note — ${months[idx]}`;
+  textarea.value = existing ? existing.text : '';
+  deleteBtn.style.display = existing ? 'inline-block' : 'none';
+  modal.dataset.chartKey = chartKey;
+  modal.dataset.month = nk.month;
+  modal.dataset.year = nk.year;
+  modal.dataset.idx = idx;
+  modal.classList.add('open');
+  textarea.focus();
+}
+
+function saveNoteModal() {
+  const modal = document.getElementById('noteModal');
+  const text = document.getElementById('noteModalText').value.trim();
+  const chartKey = modal.dataset.chartKey;
+  const month = modal.dataset.month;
+  const year = modal.dataset.year;
+  const idx = parseInt(modal.dataset.idx);
+  if (!text) return;
+
+  fetch(`/api/notes/${chartKey}/${month}/${year}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text})
+  })
+  .then(r => r.json())
+  .then(() => {
+    const key = `${chartKey}_${month}_${year}`;
+    _chartNotes[key] = {text, chart_key: chartKey, month: parseInt(month), year: parseInt(year)};
+    addNoteMarkers(chartKey);
+    closeNoteModal();
+  });
+}
+
+function deleteNoteModal() {
+  const modal = document.getElementById('noteModal');
+  const chartKey = modal.dataset.chartKey;
+  const month = modal.dataset.month;
+  const year = modal.dataset.year;
+
+  fetch(`/api/notes/${chartKey}/${month}/${year}`, {method: 'DELETE'})
+  .then(r => r.json())
+  .then(() => {
+    delete _chartNotes[`${chartKey}_${month}_${year}`];
+    addNoteMarkers(chartKey);
+    closeNoteModal();
+  });
+}
+
+function closeNoteModal() {
+  document.getElementById('noteModal').classList.remove('open');
+}
+
+// Add click handlers to all line charts
+Object.keys(charts).forEach(chartKey => {
+  const chart = charts[chartKey];
+  if (!chart || chart.config.type !== 'line') return;
+  chart.options.onClick = (evt) => {
+    const points = chart.getElementsAtEventForMode(evt, 'nearest', {intersect: true}, false);
+    if (points.length > 0) {
+      openNoteModal(chartKey, points[0].index);
+    }
+  };
+  chart.update('none');
+});
 </script>
+
+<!-- QI Note Modal -->
+<div id="noteModal" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:420px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+    <h3 id="noteModalTitle" style="font-size:16px;font-weight:700;margin-bottom:12px;">QI Note</h3>
+    <textarea id="noteModalText" rows="4" placeholder="What changes did you make this month? What did you observe?"
+      style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:space-between;">
+      <button id="noteDeleteBtn" onclick="deleteNoteModal()" style="display:none;padding:8px 16px;background:#fee2e2;color:#dc2626;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Delete</button>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button onclick="closeNoteModal()" style="padding:8px 16px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+        <button onclick="saveNoteModal()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Save Note</button>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  #noteModal.open { display:flex; }
+</style>
 
 {% endif %}
 {% endblock %}

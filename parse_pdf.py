@@ -347,40 +347,61 @@ def parse_metrics(pdf_path: str) -> dict:
     rad_disc_peers = None
 
     if summary_text:
-        # Discharge Rate
+        # Discharge Rate — values may be on same line or separate lines
         m = re.search(
-            r'Discharge Rate\n([\d.]+%)\n([\d.]+%)\n.*?\n([\d.]+%)\s+Percentile',
+            r'Discharge Rate\n([\d.]+%)\s+([\d.]+%)\n.*?([\d.]+%)\s+Percentile',
             summary_text, re.DOTALL
         )
+        if not m:
+            m = re.search(
+                r'Discharge Rate\n([\d.]+%)\n([\d.]+%)\n.*?([\d.]+%)\s+Percentile',
+                summary_text, re.DOTALL
+            )
         if m:
             discharge_rate_me = _parse_float(m.group(1))
             discharge_rate_peers = _parse_float(m.group(2))
             discharge_rate_pctile = _parse_float(m.group(3))
 
-        # ICU Rate
+        # ICU Rate — same-line or separate-line variants
         m = re.search(
-            r'Admission to ICU Rate\n([\d.]+%)\n([\d.]+%)\n.*?\n(\d+)%\s+Percentile',
+            r'Admission to ICU Rate\n([\d.]+%)\s+([\d.]+%)\n.*?(\d+)%\s+Percentile',
             summary_text, re.DOTALL
         )
+        if not m:
+            m = re.search(
+                r'Admission to ICU Rate\n([\d.]+%)\n([\d.]+%)\n.*?(\d+)%\s+Percentile',
+                summary_text, re.DOTALL
+            )
         if m:
             icu_rate_me = _parse_float(m.group(1))
             icu_rate_peers = _parse_float(m.group(2))
             icu_rate_pctile = _parse_float(m.group(3))
 
         # Radiology: Admit and Discharge %
-        # Pattern: "% with Radiology Orders\n36% 33%\n50.00% Percentile\n64%\nAdmit\n47%\n100% Percentile\n33%\nDischarge 30%\n32% Percentile"
+        # Try both layout variants
         m = re.search(
             r'% with Radiology Orders\n[\d.]+%\s+[\d.]+%\n[\d.]+%\s+Percentile\n([\d.]+%)\nAdmit\n([\d.]+%)',
             summary_text, re.DOTALL
         )
+        if not m:
+            # September-style: "% with Radiology Orders\n31% 35%\n21.43% Percentile\n61%\nAdmit 49%"
+            m = re.search(
+                r'% with Radiology Orders\n[\d.]+%\s+[\d.]+%\n[\d.]+%\s+Percentile\n([\d.]+%)\nAdmit\s+([\d.]+%)',
+                summary_text, re.DOTALL
+            )
         if m:
             rad_admit_me = _parse_float(m.group(1))
             rad_admit_peers = _parse_float(m.group(2))
 
         m = re.search(
-            r'% with Radiology Orders.*?Discharge\s+([\d.]+%)\s+([\d.]+%)',
+            r'([\d.]+%)\nDischarge\s+([\d.]+%)',
             summary_text, re.DOTALL
         )
+        if not m:
+            m = re.search(
+                r'Discharge\s+([\d.]+%)\s+([\d.]+%)',
+                summary_text, re.DOTALL
+            )
         if m:
             rad_disc_me = _parse_float(m.group(1))
             rad_disc_peers = _parse_float(m.group(2))
