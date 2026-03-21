@@ -3,7 +3,7 @@ import re
 import sqlite3
 import tempfile
 from datetime import datetime, timezone
-from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -221,6 +221,10 @@ def upload_page():
             flash('PDF appears to be password-protected or corrupted.', 'error')
             return render_template('upload.html')
         finally:
+            try:
+                tmp.close()  # no-op if already closed; guards against save() failure
+            except Exception:
+                pass
             try:
                 os.unlink(tmp.name)
             except OSError:
