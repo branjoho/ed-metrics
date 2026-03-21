@@ -3,7 +3,7 @@ import re
 import sqlite3
 import tempfile
 from datetime import datetime, timezone
-from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request
+from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -316,6 +316,28 @@ def upload_page():
         flash(f"Month {metrics['month']}/{metrics['year']} uploaded successfully.", 'success')
         return redirect(url_for('dashboard', month=metrics['month'], year=metrics['year']))
     return render_template('upload.html')
+
+@app.route('/api/months/<int:month>/<int:year>', methods=['DELETE'])
+@login_required
+def delete_month(month, year):
+    db = get_db()
+    row = db.execute(
+        'SELECT id FROM monthly_metrics WHERE user_id=? AND month=? AND year=?',
+        (current_user.id, month, year)
+    ).fetchone()
+    if not row:
+        return jsonify({'error': 'Not found'}), 404
+    db.execute(
+        'DELETE FROM insights_cache WHERE user_id=? AND month=? AND year=?',
+        (current_user.id, month, year)
+    )
+    db.execute(
+        'DELETE FROM monthly_metrics WHERE user_id=? AND month=? AND year=?',
+        (current_user.id, month, year)
+    )
+    db.commit()
+    return jsonify({'ok': True})
+
 
 if __name__ == '__main__':
     init_db()
