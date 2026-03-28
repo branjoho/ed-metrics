@@ -1,8 +1,23 @@
-flask>=3.0
-flask-login>=0.6
-flask-bcrypt>=1.0
+# web framework
+streamlit>=1.35
+
+# database
+supabase>=2.4
+
+# charts
+plotly>=5.20
+
+# auth
+bcrypt>=4.1
+
+# PDF parsing
 pdfplumber>=0.11
+
+# AI
 anthropic>=0.25
-pytest>=8.0
-pytest-flask>=1.3
+
+# env
 python-dotenv>=1.0
+
+# tests
+pytest>=8.0
