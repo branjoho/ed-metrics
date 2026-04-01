@@ -2,8 +2,8 @@ import io
 import os
 import pytest
 from unittest.mock import patch
-import sqlite3
 from parse_pdf import parse_metrics, ParseError
+from conftest import register_user, login_user, fake_db
 
 REAL_PDF = "/Users/branjoho/Documents/Attending metrics/2_2026 - ED Provider Metrics.pdf"
 requires_real_pdf = pytest.mark.skipif(
@@ -12,7 +12,7 @@ requires_real_pdf = pytest.mark.skipif(
 )
 
 FAKE_METRICS = {
-    'month': 2, 'year': 2026, 'patients': 125,
+    'month': 2, 'year': 2026, 'patients': 125, 'shift_count': 10,
     'discharge_los_me': 3.47, 'discharge_los_peers': 3.8, 'discharge_los_pctile': 13.0,
     'admit_los_me': 5.36, 'admit_los_peers': 5.30, 'admit_los_pctile': 58.0,
     'admission_rate_me': 11.2, 'admission_rate_peers': 17.6, 'admission_rate_pctile': 15.0,
@@ -26,6 +26,8 @@ FAKE_METRICS = {
     'icu_rate_me': 0.0, 'icu_rate_peers': 0.03, 'icu_rate_pctile': 0.0,
     'rad_admit_me': 64.0, 'rad_admit_peers': 47.0,
     'rad_disc_me': 33.0, 'rad_disc_peers': 30.0,
+    'lab_admit_me': 50.0, 'lab_admit_peers': 55.0,
+    'lab_disc_me': 40.0, 'lab_disc_peers': 45.0,
     'esi1': 0.8, 'esi2': 20.0, 'esi3': 49.6, 'esi4': 23.2, 'esi5': 6.4,
     'billing_level3': 16, 'billing_level4': 59, 'billing_level5': 25,
 }
@@ -38,30 +40,24 @@ def test_upload_get_requires_login(client):
     assert rv.status_code == 302
 
 def test_upload_get_renders_form(client):
-    from conftest import register_user, login_user
     register_user(client)
     login_user(client)
     rv = client.get('/upload')
     assert rv.status_code == 200
     assert b'upload' in rv.data.lower() or b'pdf' in rv.data.lower()
 
-def test_upload_stores_metrics(client, app):
-    from conftest import register_user, login_user
+def test_upload_stores_metrics(client):
     register_user(client)
     login_user(client)
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
         rv = client.post('/upload', data={'pdfs': fake_pdf()},
                          content_type='multipart/form-data', follow_redirects=True)
     assert rv.status_code == 200
-    with app.app_context():
-        from app import get_db
-        db = get_db()
-        row = db.execute('SELECT * FROM monthly_metrics WHERE month=2 AND year=2026').fetchone()
-        assert row is not None
-        assert row['patients'] == 125
+    rows = [r for r in fake_db.metrics if r['month'] == 2 and r['year'] == 2026]
+    assert len(rows) == 1
+    assert rows[0]['patients'] == 125
 
-def test_upload_upsert_overwrites(client, app):
-    from conftest import register_user, login_user
+def test_upload_upsert_overwrites(client):
     register_user(client)
     login_user(client)
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
@@ -69,15 +65,11 @@ def test_upload_upsert_overwrites(client, app):
     updated = {**FAKE_METRICS, 'patients': 999}
     with patch('app.parse_metrics', return_value=updated):
         client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
-    with app.app_context():
-        from app import get_db
-        db = get_db()
-        rows = db.execute('SELECT patients FROM monthly_metrics WHERE month=2 AND year=2026').fetchall()
-        assert len(rows) == 1
-        assert rows[0]['patients'] == 999
+    rows = [r for r in fake_db.metrics if r['month'] == 2 and r['year'] == 2026]
+    assert len(rows) == 1
+    assert rows[0]['patients'] == 999
 
 def test_upload_bad_mime_rejected(client):
-    from conftest import register_user, login_user
     register_user(client)
     login_user(client)
     rv = client.post('/upload', data={
@@ -85,29 +77,26 @@ def test_upload_bad_mime_rejected(client):
     }, content_type='multipart/form-data', follow_redirects=True)
     assert b'pdf' in rv.data.lower()
 
-def test_upload_clears_insights_cache(client, app):
-    from conftest import register_user, login_user
+def test_upload_clears_insights_cache(client):
     register_user(client)
     login_user(client)
-    # Seed a cache row
-    with app.app_context():
-        from app import get_db
-        db = get_db()
-        user = db.execute("SELECT id FROM users WHERE username='testuser'").fetchone()
-        db.execute(
-            "INSERT INTO insights_cache (user_id, month, year, chart_key, insight_text, generated_at) "
-            "VALUES (?,2,2026,'dischargeLOS','[]','2026-01-01')", (user['id'],))
-        db.commit()
+    # Seed a cache entry directly in fake_db before upload
+    # (register creates the user, so we need to get their ID after registration)
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
         client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
-    with app.app_context():
-        from app import get_db
-        db = get_db()
-        count = db.execute("SELECT COUNT(*) FROM insights_cache").fetchone()[0]
-        assert count == 0
+    # Manually add insight cache entry
+    user = fake_db.users.get('testuser')
+    fake_db.insights.append({
+        'user_id': user['id'], 'month': 2, 'year': 2026,
+        'chart_key': 'dischargeLOS', 'insight_text': '[]',
+        'generated_at': '2026-01-01T00:00:00+00:00',
+    })
+    # Upload again — should clear insights
+    with patch('app.parse_metrics', return_value=FAKE_METRICS):
+        client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
+    assert len(fake_db.insights) == 0
 
-def test_upload_isolation(client, app):
-    from conftest import register_user, login_user
+def test_upload_isolation(client):
     register_user(client, 'user1', 'password123')
     login_user(client, 'user1', 'password123')
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
@@ -117,12 +106,9 @@ def test_upload_isolation(client, app):
     login_user(client, 'user2', 'password456')
     with patch('app.parse_metrics', return_value=FAKE_METRICS):
         client.post('/upload', data={'pdfs': fake_pdf()}, content_type='multipart/form-data')
-    with app.app_context():
-        from app import get_db
-        db = get_db()
-        rows = db.execute('SELECT user_id FROM monthly_metrics WHERE month=2 AND year=2026').fetchall()
-        assert len(rows) == 2
-        assert rows[0]['user_id'] != rows[1]['user_id']
+    rows = [r for r in fake_db.metrics if r['month'] == 2 and r['year'] == 2026]
+    assert len(rows) == 2
+    assert rows[0]['user_id'] != rows[1]['user_id']
 
 @requires_real_pdf
 def test_parse_returns_dict():

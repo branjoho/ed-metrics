@@ -6,7 +6,7 @@ from conftest import register_user, login_user
 from unittest.mock import patch
 
 FAKE_METRICS = {
-    'month': 2, 'year': 2026, 'patients': 125,
+    'month': 2, 'year': 2026, 'patients': 125, 'shift_count': 10,
     'discharge_los_me': 3.47, 'discharge_los_peers': 3.8, 'discharge_los_pctile': 13.0,
     'admit_los_me': 5.36, 'admit_los_peers': 5.30, 'admit_los_pctile': 58.0,
     'admission_rate_me': 11.2, 'admission_rate_peers': 17.6, 'admission_rate_pctile': 15.0,
@@ -20,6 +20,8 @@ FAKE_METRICS = {
     'icu_rate_me': 0.0, 'icu_rate_peers': 0.03, 'icu_rate_pctile': 0.0,
     'rad_admit_me': 64.0, 'rad_admit_peers': 47.0,
     'rad_disc_me': 33.0, 'rad_disc_peers': 30.0,
+    'lab_admit_me': 50.0, 'lab_admit_peers': 55.0,
+    'lab_disc_me': 40.0, 'lab_disc_peers': 45.0,
     'esi1': 0.8, 'esi2': 20.0, 'esi3': 49.6, 'esi4': 23.2, 'esi5': 6.4,
     'billing_level3': 2, 'billing_level4': 22, 'billing_level5': 8,
 }
