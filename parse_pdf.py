@@ -62,6 +62,134 @@ def _extract_month_year_from_text(pages):
     return None, None
 
 
+def _parse_shift_data(pts_page_text):
+    """
+    Parse per-shift pts/hour from page 5 'by Shift' section.
+
+    PDF layout (pdfplumber text order):
+      Peers               <- axis label — acts as a BOUNDARY between shift sections
+      [me_value]          <- your value (may appear 1-2x, same value rounded differently)
+      [peers_value]       <- peer median
+      SHIFT NAME [optional inline percentile or value]
+      [optional percentile line]
+      Peers               <- next boundary
+
+    Strategy:
+      - Split text into per-shift windows using "Peers" lines as boundaries.
+      - Within each window: last numeric = peers, second-to-last (if distinct) = me.
+      - Percentile is found after the shift name.
+      - Special: ORCA Eve peers appears after the shift name (no "Peers" line before
+        the next section); handle by peeking at lines after the shift name.
+    """
+    m = re.search(r'Average New Patient Assignments Per Hour by Shift.*', pts_page_text, re.DOTALL)
+    if not m:
+        return []
+
+    section = m.group(0)
+    lines = [l.strip() for l in section.split('\n') if l.strip()]
+
+    # Matches known shift name lines (bare or with trailing inline percentile/value)
+    shift_name_re = re.compile(
+        r'^(ED\s+\S[\w ]*?|ORCA\s+\w[\w ]*?|EDFT)'
+        r'(?:\s+\d+(?:\.\d+)?%\s*Percentile|\s+[\d.]+)?$',
+        re.IGNORECASE,
+    )
+
+    # Purely numeric line (one or two floats)
+    num_line_re = re.compile(r'^([\d.]+)(?:\s+([\d.]+))?$')
+
+    def is_peers_boundary(line):
+        """A line that starts with 'Peers' (may have trailing content) is a boundary."""
+        return re.match(r'^Peers', line, re.IGNORECASE) is not None
+
+    results = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # --- Detect shift name line ---
+        sm = shift_name_re.match(line)
+        if not sm:
+            i += 1
+            continue
+
+        shift_name = sm.group(1).strip()
+
+        # Inline percentile on the shift name line (e.g. "ED WestEve 13% Percentile")
+        pctile_inline = re.search(r'(\d+(?:\.\d+)?)%\s*Percentile', line)
+        pctile = float(pctile_inline.group(1)) if pctile_inline else None
+
+        # Inline numeric on shift name (e.g. "ORCA Day 1.9966")
+        inline_num_m = re.search(r'\s+([\d.]+)$', line)
+        inline_num = _parse_float(inline_num_m.group(1)) if inline_num_m else None
+
+        # --- Collect numerics backward until a "Peers" boundary or section start ---
+        pre_vals = []
+        for j in range(i - 1, max(i - 8, -1), -1):
+            if is_peers_boundary(lines[j]):
+                break  # stop at the Peers axis label
+            if shift_name_re.match(lines[j]):
+                break  # stop at another shift name (e.g. after "ORCA Day 1.9966")
+            nm = num_line_re.match(lines[j])
+            if nm:
+                v2 = _parse_float(nm.group(2)) if nm.group(2) else None
+                v1 = _parse_float(nm.group(1))
+                if v2 is not None:
+                    pre_vals.insert(0, v2)
+                pre_vals.insert(0, v1)
+
+        # --- Percentile: inline or in next 4 lines ---
+        if pctile is None:
+            for j in range(i + 1, min(i + 5, len(lines))):
+                pm = re.search(r'(\d+(?:\.\d+)?)%\s*Percentile', lines[j])
+                if pm:
+                    pctile = float(pm.group(1))
+                    break
+
+        # --- Determine peers / me ---
+        peers = None
+        me = None
+
+        if inline_num is not None and not pre_vals:
+            # e.g. "ORCA Day 1.9966" — inline value is peers (no me data)
+            peers = inline_num
+        elif pre_vals:
+            peers = pre_vals[-1]
+            # me is the second-to-last DISTINCT value
+            for v in reversed(pre_vals[:-1]):
+                if v != peers:
+                    me = v
+                    break
+
+        # If peers still None (e.g. ORCA Eve where peers follows shift name),
+        # peek forward for a lone numeric before the next boundary
+        if peers is None and not inline_num:
+            for j in range(i + 1, min(i + 5, len(lines))):
+                if is_peers_boundary(lines[j]) or shift_name_re.match(lines[j]):
+                    break
+                if '%' in lines[j]:
+                    continue
+                after_nm = num_line_re.match(lines[j])
+                if after_nm:
+                    if me is None:
+                        peers = _parse_float(after_nm.group(1))
+                    else:
+                        peers = _parse_float(after_nm.group(1))
+                    break
+
+        if me is not None or peers is not None:
+            results.append({
+                'shift': shift_name,
+                'me': me,
+                'peers': peers,
+                'pctile': pctile,
+            })
+
+        i += 1
+
+    return results
+
+
 def _get_full_text(pdf_path):
     """Return concatenated text from all pages, or raise on open failure."""
     try:
@@ -289,6 +417,12 @@ def parse_metrics(pdf_path: str) -> dict:
         lab_orders_pctile = _parse_float(m.group(4))
 
     # ----------------------------------------------------------------
+    # Page 4: Qgenda shifts — count shifts in the reporting period
+    # ----------------------------------------------------------------
+    shift_page_text = pages[3] if len(pages) > 3 else ''
+    shift_count = len(re.findall(r'- \d+Hrs', shift_page_text))
+
+    # ----------------------------------------------------------------
     # Page 5: Patients per hour (New Patient Assignments Per Hour)
     # ----------------------------------------------------------------
     pts_page_text = pages[4] if len(pages) > 4 else ''
@@ -305,6 +439,9 @@ def parse_metrics(pdf_path: str) -> dict:
         pts_per_hour_me = _parse_float(m.group(1))
         pts_per_hour_peers = _parse_float(m.group(3))
         pts_per_hour_pctile = _parse_float(m.group(4))
+
+    # ---- Patients per hour by shift type ----
+    shift_data = _parse_shift_data(pts_page_text)
 
     # ----------------------------------------------------------------
     # Page 6: Billing codes for the provider row
@@ -378,13 +515,11 @@ def parse_metrics(pdf_path: str) -> dict:
             icu_rate_pctile = _parse_float(m.group(3))
 
         # Radiology: Admit and Discharge %
-        # Try both layout variants
         m = re.search(
             r'% with Radiology Orders\n[\d.]+%\s+[\d.]+%\n[\d.]+%\s+Percentile\n([\d.]+%)\nAdmit\n([\d.]+%)',
             summary_text, re.DOTALL
         )
         if not m:
-            # September-style: "% with Radiology Orders\n31% 35%\n21.43% Percentile\n61%\nAdmit 49%"
             m = re.search(
                 r'% with Radiology Orders\n[\d.]+%\s+[\d.]+%\n[\d.]+%\s+Percentile\n([\d.]+%)\nAdmit\s+([\d.]+%)',
                 summary_text, re.DOTALL
@@ -393,18 +528,43 @@ def parse_metrics(pdf_path: str) -> dict:
             rad_admit_me = _parse_float(m.group(1))
             rad_admit_peers = _parse_float(m.group(2))
 
+        # Radiology discharge — first "Discharge" occurrence in summary
+        m = re.search(r'([\d.]+%)\nDischarge\s+([\d.]+%)', summary_text, re.DOTALL)
+        if not m:
+            m = re.search(r'Discharge\s+([\d.]+%)\s+([\d.]+%)', summary_text, re.DOTALL)
+        if m:
+            rad_disc_me = _parse_float(m.group(1))
+            rad_disc_peers = _parse_float(m.group(2))
+
+        # Lab: Admit and Discharge % — same layout as radiology
+        lab_admit_me = None
+        lab_admit_peers = None
+        lab_disc_me = None
+        lab_disc_peers = None
+
         m = re.search(
-            r'([\d.]+%)\nDischarge\s+([\d.]+%)',
+            r'% with Lab Orders\n[\d.]+%\s+[\d.]+%\n[\d.]+%\s*(?:Percentile)?\n([\d.]+%)\nAdmit\n([\d.]+%)',
             summary_text, re.DOTALL
         )
         if not m:
             m = re.search(
-                r'Discharge\s+([\d.]+%)\s+([\d.]+%)',
+                r'% with Lab Orders\n[\d.]+%\s+[\d.]+%\n[\d.]+%\s*(?:Percentile)?\n([\d.]+%)\nAdmit\s+([\d.]+%)',
                 summary_text, re.DOTALL
             )
         if m:
-            rad_disc_me = _parse_float(m.group(1))
-            rad_disc_peers = _parse_float(m.group(2))
+            lab_admit_me = _parse_float(m.group(1))
+            lab_admit_peers = _parse_float(m.group(2))
+
+        # Lab discharge — find the section between "Lab Orders" and "72 Hour"
+        lab_section_m = re.search(r'% with Lab Orders.*?72 Hour', summary_text, re.DOTALL)
+        if lab_section_m:
+            lab_sec = lab_section_m.group(0)
+            dm = re.search(r'([\d.]+%)\nDischarge\s+([\d.]+%)', lab_sec)
+            if not dm:
+                dm = re.search(r'Discharge\s+([\d.]+%)\s+([\d.]+%)', lab_sec)
+            if dm:
+                lab_disc_me = _parse_float(dm.group(1))
+                lab_disc_peers = _parse_float(dm.group(2))
 
     # ----------------------------------------------------------------
     # ESI distribution — from page 3 or 7
@@ -511,6 +671,11 @@ def parse_metrics(pdf_path: str) -> dict:
         'rad_admit_peers': rad_admit_peers,
         'rad_disc_me': rad_disc_me,
         'rad_disc_peers': rad_disc_peers,
+        # Lab admit/discharge split
+        'lab_admit_me': lab_admit_me,
+        'lab_admit_peers': lab_admit_peers,
+        'lab_disc_me': lab_disc_me,
+        'lab_disc_peers': lab_disc_peers,
         # ESI
         'esi1': esi1,
         'esi2': esi2,
@@ -521,4 +686,8 @@ def parse_metrics(pdf_path: str) -> dict:
         'billing_level3': billing_level3,
         'billing_level4': billing_level4,
         'billing_level5': billing_level5,
+        # Shift count (from Qgenda page)
+        'shift_count': shift_count,
+        # Shift breakdown
+        'shift_data': shift_data,
     }
