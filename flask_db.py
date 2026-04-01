@@ -3,16 +3,11 @@ import os
 from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 
-_client = None
-
 def get_client() -> Client:
-    global _client
-    if _client is None:
-        _client = create_client(
-            os.environ["SUPABASE_URL"],
-            os.environ["SUPABASE_KEY"],
-        )
-    return _client
+    return create_client(
+        os.environ["SUPABASE_URL"],
+        os.environ["SUPABASE_KEY"],
+    )
 
 
 # ---------------------------------------------------------------------------
