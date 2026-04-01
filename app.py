@@ -1,112 +1,29 @@
 import os
 import re
 import json
-import sqlite3
 import tempfile
 import anthropic
 from datetime import datetime, timezone, timedelta
-from flask import Flask, g, current_app, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, current_app, render_template, redirect, url_for, flash, request, jsonify, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 from parse_pdf import parse_metrics, ParseError
+import flask_db
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB
-app.config['DATABASE'] = os.path.join(app.instance_path, 'metrics.db')
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-os.makedirs(app.instance_path, exist_ok=True)
-
 _api_key = os.environ.get('ANTHROPIC_API_KEY')
 anthropic_client = anthropic.Anthropic(api_key=_api_key) if _api_key else None
 
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS monthly_metrics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    month INTEGER NOT NULL,
-    year INTEGER NOT NULL,
-    patients INTEGER,
-    discharge_los_me REAL, discharge_los_peers REAL, discharge_los_pctile REAL,
-    admit_los_me REAL, admit_los_peers REAL, admit_los_pctile REAL,
-    admission_rate_me REAL, admission_rate_peers REAL, admission_rate_pctile REAL,
-    bed_request_me REAL, bed_request_peers REAL, bed_request_pctile REAL,
-    returns72_me REAL, returns72_peers REAL, returns72_pctile REAL,
-    readmits72_me REAL, readmits72_peers REAL, readmits72_pctile REAL,
-    rad_orders_me REAL, rad_orders_peers REAL, rad_orders_pctile REAL,
-    lab_orders_me REAL, lab_orders_peers REAL, lab_orders_pctile REAL,
-    pts_per_hour_me REAL, pts_per_hour_peers REAL, pts_per_hour_pctile REAL,
-    discharge_rate_me REAL, discharge_rate_peers REAL, discharge_rate_pctile REAL,
-    icu_rate_me REAL, icu_rate_peers REAL, icu_rate_pctile REAL,
-    rad_admit_me REAL, rad_admit_peers REAL,
-    rad_disc_me REAL, rad_disc_peers REAL,
-    esi1 REAL, esi2 REAL, esi3 REAL, esi4 REAL, esi5 REAL,
-    billing_level3 INTEGER, billing_level4 INTEGER, billing_level5 INTEGER,
-    UNIQUE(user_id, month, year)
-);
-
-CREATE TABLE IF NOT EXISTS chart_notes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    month INTEGER NOT NULL,
-    year INTEGER NOT NULL,
-    chart_key TEXT NOT NULL,
-    note_text TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(user_id, month, year, chart_key)
-);
-
-CREATE TABLE IF NOT EXISTS insights_cache (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    month INTEGER NOT NULL,
-    year INTEGER NOT NULL,
-    chart_key TEXT NOT NULL,
-    insight_text TEXT NOT NULL,
-    generated_at TEXT NOT NULL,
-    UNIQUE(user_id, month, year, chart_key)
-);
-"""
-
-def get_db():
-    if 'db' not in g:
-        g.db = sqlite3.connect(
-            current_app.config['DATABASE'],
-            detect_types=sqlite3.PARSE_DECLTYPES
-        )
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-    return g.db
-
-@app.teardown_appcontext
-def close_db(e=None):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
-
-def init_db():
-    # Must be called within an app context
-    db = sqlite3.connect(current_app.config['DATABASE'])
-    db.execute("PRAGMA foreign_keys = ON")
-    db.executescript(SCHEMA)
-    db.commit()
-    db.close()
 
 class User(UserMixin):
     def __init__(self, id, username):
@@ -115,8 +32,7 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    db = get_db()
-    row = db.execute('SELECT id, username FROM users WHERE id = ?', (user_id,)).fetchone()
+    row = flask_db.get_user_by_id(int(user_id))
     if row:
         return User(row['id'], row['username'])
     return None
@@ -141,16 +57,10 @@ def register():
             flash(error, 'error')
             return render_template('register.html', username=username)
         pw_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-        try:
-            db = get_db()
-            db.execute(
-                'INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)',
-                (username, pw_hash, datetime.now(timezone.utc).isoformat())
-            )
-            db.commit()
-        except sqlite3.IntegrityError:
+        if flask_db.get_user(username):
             flash('Username already taken.', 'error')
             return render_template('register.html', username=username)
+        flask_db.create_user(username, pw_hash)
         flash('Account created. Please log in.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
@@ -160,8 +70,7 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        db = get_db()
-        row = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        row = flask_db.get_user(username)
         if row and bcrypt.check_password_hash(row['password_hash'], password):
             user = User(row['id'], row['username'])
             login_user(user)
@@ -328,23 +237,11 @@ def get_insights(chart_key, month, year):
     if not anthropic_client:
         return jsonify({'error': 'Insights unavailable — API key not configured.'})
 
-    db = get_db()
+    cached = flask_db.get_cached_insight(current_user.id, month, year, chart_key)
+    if cached is not None:
+        return jsonify(cached)
 
-    # Check cache (valid for 90 days)
-    cached = db.execute(
-        'SELECT insight_text, generated_at FROM insights_cache WHERE user_id=? AND month=? AND year=? AND chart_key=?',
-        (current_user.id, month, year, chart_key)
-    ).fetchone()
-    if cached:
-        generated_at = datetime.fromisoformat(cached['generated_at'])
-        if datetime.now(timezone.utc) - generated_at < timedelta(days=90):
-            return jsonify(json.loads(cached['insight_text']))
-
-    # Fetch all rows for trend context
-    all_rows = [dict(r) for r in db.execute(
-        'SELECT * FROM monthly_metrics WHERE user_id=? ORDER BY year, month',
-        (current_user.id,)
-    ).fetchall()]
+    all_rows = flask_db.get_metrics(current_user.id)
     sel_row = next((r for r in all_rows if r['month'] == month and r['year'] == year), None)
     if not sel_row:
         return jsonify({'error': 'No data found for this month.'})
@@ -370,16 +267,7 @@ def get_insights(chart_key, month, year):
         app.logger.error('Insights error for %s: %s', chart_key, e)
         return jsonify({'error': f'Could not generate insights: {e}'})
 
-    # Cache result
-    db.execute(
-        '''INSERT INTO insights_cache (user_id, month, year, chart_key, insight_text, generated_at)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT(user_id, month, year, chart_key) DO UPDATE SET
-           insight_text=excluded.insight_text, generated_at=excluded.generated_at''',
-        (current_user.id, month, year, chart_key,
-         json.dumps(insights), datetime.now(timezone.utc).isoformat())
-    )
-    db.commit()
+    flask_db.save_insight_cache(current_user.id, month, year, chart_key, insights)
     return jsonify(insights)
 
 def _build_metrics_json(rows):
@@ -391,7 +279,7 @@ def _build_metrics_json(rows):
         return [r[field] for r in rows]
 
     return {
-        'patients':      {'me': col('patients')},
+        'patients':      {'me': col('patients'), 'shifts': col('shift_count')},
         'dischargeLOS':  {'me': col('discharge_los_me'), 'peers': col('discharge_los_peers'), 'pctile': col('discharge_los_pctile')},
         'admitLOS':      {'me': col('admit_los_me'), 'peers': col('admit_los_peers'), 'pctile': col('admit_los_pctile')},
         'admissionRate': {'me': col('admission_rate_me'), 'peers': col('admission_rate_peers'), 'pctile': col('admission_rate_pctile')},
@@ -407,6 +295,10 @@ def _build_metrics_json(rows):
             'admitMe': col('rad_admit_me'), 'admitPeers': col('rad_admit_peers'),
             'discMe': col('rad_disc_me'), 'discPeers': col('rad_disc_peers'),
         },
+        'labByDispo': {
+            'admitMe': col('lab_admit_me'), 'admitPeers': col('lab_admit_peers'),
+            'discMe': col('lab_disc_me'), 'discPeers': col('lab_disc_peers'),
+        },
         'esi': {
             'esi1': col('esi1'), 'esi2': col('esi2'), 'esi3': col('esi3'),
             'esi4': col('esi4'), 'esi5': col('esi5'),
@@ -415,17 +307,15 @@ def _build_metrics_json(rows):
             'level3': col('billing_level3'), 'level4': col('billing_level4'),
             'level5': col('billing_level5'),
         },
+        'shiftByMonth': [
+            json.loads(r.get('shift_data') or '[]') for r in rows
+        ],
     }
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    db = get_db()
-    rows = db.execute(
-        'SELECT * FROM monthly_metrics WHERE user_id = ? ORDER BY year, month',
-        (current_user.id,)
-    ).fetchall()
-    rows = [dict(r) for r in rows]
+    rows = flask_db.get_metrics(current_user.id)
 
     month_labels = [
         f"{MONTH_NAMES[r['month']]} {r['year']}" for r in rows
@@ -452,6 +342,9 @@ def dashboard():
         selected['month_label'] = (
             f"{MONTH_NAMES[selected['month']]} {selected['year']}"
         )
+        # Deserialize shift_data JSON for template use
+        raw_shift = selected.get('shift_data')
+        selected['shift_data'] = json.loads(raw_shift) if raw_shift else []
 
     return render_template(
         'dashboard.html',
@@ -481,23 +374,16 @@ METRIC_FIELDS = [
     'icu_rate_me', 'icu_rate_peers', 'icu_rate_pctile',
     'rad_admit_me', 'rad_admit_peers',
     'rad_disc_me', 'rad_disc_peers',
+    'lab_admit_me', 'lab_admit_peers',
+    'lab_disc_me', 'lab_disc_peers',
+    'shift_count',
     'esi1', 'esi2', 'esi3', 'esi4', 'esi5',
     'billing_level3', 'billing_level4', 'billing_level5',
+    'shift_data',
 ]
 
 def _upsert_metrics(user_id, metrics):
-    db = get_db()
-    col_list = ', '.join(['user_id', 'month', 'year'] + METRIC_FIELDS)
-    placeholder_list = ', '.join(['?'] * (3 + len(METRIC_FIELDS)))
-    update_list = ', '.join(f'{f} = excluded.{f}' for f in METRIC_FIELDS)
-    values = [user_id, metrics['month'], metrics['year']] + [metrics.get(f) for f in METRIC_FIELDS]
-    db.execute(
-        f"""INSERT INTO monthly_metrics ({col_list}) VALUES ({placeholder_list})
-            ON CONFLICT(user_id, month, year) DO UPDATE SET {update_list}""",
-        values
-    )
-    db.execute('DELETE FROM insights_cache WHERE user_id = ?', (user_id,))
-    db.commit()
+    flask_db.upsert_metrics(user_id, metrics)
 
 def _process_upload(file):
     """Parse a single uploaded file. Returns metrics dict or raises ParseError / Exception."""
@@ -551,41 +437,85 @@ def upload_page():
         return render_template('upload.html')
     return render_template('upload.html')
 
+@app.route('/export')
+@login_required
+def export_dashboard():
+    rows = flask_db.get_metrics(current_user.id)
+    if not rows:
+        flash('No data to export.', 'error')
+        return redirect(url_for('dashboard'))
+
+    month_labels = [f"{MONTH_NAMES[r['month']]} {r['year']}" for r in rows]
+    month_list = [{'month': r['month'], 'year': r['year'], 'label': lbl}
+                  for r, lbl in zip(rows, month_labels)]
+
+    sel_month = request.args.get('month', type=int)
+    sel_year = request.args.get('year', type=int)
+    sel_idx = len(rows) - 1
+    if sel_month and sel_year:
+        for i, r in enumerate(rows):
+            if r['month'] == sel_month and r['year'] == sel_year:
+                sel_idx = i
+                break
+
+    selected = dict(rows[sel_idx])
+    selected.setdefault('patients_peers', None)
+    selected.setdefault('patients_pctile', None)
+    selected['month_label'] = f"{MONTH_NAMES[selected['month']]} {selected['year']}"
+
+    metrics_json = _build_metrics_json(rows)
+
+    # Pre-fetch all cached insights
+    insight_rows = flask_db.get_all_insights(current_user.id)
+    insights_data = {}
+    for r in insight_rows:
+        key = f"{r['chart_key']}_{r['month']}_{r['year']}"
+        insights_data[key] = json.loads(r['insight_text'])
+
+    # Pre-fetch all notes
+    notes_raw = flask_db.get_all_notes(current_user.id)
+    notes_data = {}
+    for key, r in notes_raw.items():
+        notes_data[key] = {'text': r['note_text'], 'month': r['month'], 'year': r['year'], 'chart_key': r['chart_key']}
+
+    html = render_template(
+        'export.html',
+        metrics_json=metrics_json,
+        month_labels=month_labels,
+        month_list=month_list,
+        sel_idx=sel_idx,
+        selected=selected,
+        username=current_user.username,
+        insights_data=insights_data,
+        notes_data=notes_data,
+        export_date=datetime.now().strftime('%B %d, %Y'),
+    )
+    filename = f"ed-metrics-{selected['month_label'].replace(' ', '-')}.html"
+    return Response(
+        html,
+        mimetype='text/html',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )
+
+
 @app.route('/api/months/<int:month>/<int:year>', methods=['DELETE'])
 @login_required
 def delete_month(month, year):
-    db = get_db()
-    row = db.execute(
-        'SELECT id FROM monthly_metrics WHERE user_id=? AND month=? AND year=?',
-        (current_user.id, month, year)
-    ).fetchone()
-    if not row:
+    if not flask_db.delete_month(current_user.id, month, year):
         return jsonify({'error': 'Not found'}), 404
-    db.execute(
-        'DELETE FROM insights_cache WHERE user_id=? AND month=? AND year=?',
-        (current_user.id, month, year)
-    )
-    db.execute(
-        'DELETE FROM monthly_metrics WHERE user_id=? AND month=? AND year=?',
-        (current_user.id, month, year)
-    )
-    db.commit()
     return jsonify({'ok': True})
 
 
 @app.route('/api/notes', methods=['GET'])
 @login_required
 def get_all_notes():
-    db = get_db()
-    rows = db.execute(
-        'SELECT month, year, chart_key, note_text, updated_at FROM chart_notes WHERE user_id=?',
-        (current_user.id,)
-    ).fetchall()
+    notes_raw = flask_db.get_all_notes(current_user.id)
     notes = {}
-    for r in rows:
-        key = f"{r['chart_key']}_{r['month']}_{r['year']}"
-        notes[key] = {'month': r['month'], 'year': r['year'], 'chart_key': r['chart_key'],
-                      'text': r['note_text'], 'updated_at': r['updated_at']}
+    for key, r in notes_raw.items():
+        notes[key] = {
+            'month': r['month'], 'year': r['year'], 'chart_key': r['chart_key'],
+            'text': r['note_text'], 'updated_at': r.get('updated_at'),
+        }
     return jsonify(notes)
 
 
@@ -595,33 +525,17 @@ def save_note(chart_key, month, year):
     text = (request.json or {}).get('text', '').strip()
     if not text:
         return jsonify({'error': 'Note text is required'}), 400
-    db = get_db()
-    now = datetime.now(timezone.utc).isoformat()
-    db.execute(
-        '''INSERT INTO chart_notes (user_id, month, year, chart_key, note_text, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(user_id, month, year, chart_key) DO UPDATE SET
-           note_text=excluded.note_text, updated_at=excluded.updated_at''',
-        (current_user.id, month, year, chart_key, text, now, now)
-    )
-    db.commit()
+    flask_db.upsert_note(current_user.id, month, year, chart_key, text)
     return jsonify({'ok': True})
 
 
 @app.route('/api/notes/<chart_key>/<int:month>/<int:year>', methods=['DELETE'])
 @login_required
 def delete_note(chart_key, month, year):
-    db = get_db()
-    db.execute(
-        'DELETE FROM chart_notes WHERE user_id=? AND month=? AND year=? AND chart_key=?',
-        (current_user.id, month, year, chart_key)
-    )
-    db.commit()
+    flask_db.delete_note(current_user.id, month, year, chart_key)
     return jsonify({'ok': True})
 
 
 if __name__ == '__main__':
-    with app.app_context():
-        init_db()
     port = int(os.environ.get('PORT', 5001))
     app.run(debug=True, port=port)
