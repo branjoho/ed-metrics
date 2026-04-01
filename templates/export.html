@@ -1,0 +1,869 @@
+{% macro chart_notes(chart_key) %}{% set ns = namespace(found=false) %}{% for m in month_list %}{% set nk = chart_key ~ '_' ~ m.month ~ '_' ~ m.year %}{% if nk in notes_data %}{% set ns.found = true %}{% endif %}{% endfor %}{% if ns.found %}<div class="qi-notes">{% for m in month_list %}{% set nk = chart_key ~ '_' ~ m.month ~ '_' ~ m.year %}{% if nk in notes_data %}<div class="qi-note"><div class="qi-note-label">📝 {{ m.label }}</div>{{ notes_data[nk].text }}</div>{% endif %}{% endfor %}</div>{% endif %}{% endmacro %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ED Provider Metrics — {{ username }} — {{ selected.month_label }}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f8fafc; --surface: #ffffff; --surface2: #f1f5f9;
+    --border: #e2e8f0; --accent: #2563eb; --accent2: #7c3aed;
+    --green: #16a34a; --yellow: #d97706; --red: #dc2626;
+    --text: #1e293b; --muted: #64748b;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+  nav { background: #fff; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; height: 56px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .brand { font-weight: 800; font-size: 16px; color: var(--accent); margin-right: auto; }
+  .export-badge { font-size: 12px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; }
+  main { max-width: 1300px; margin: 0 auto; padding: 32px 24px 80px; }
+  section { margin-bottom: 52px; scroll-margin-top: 68px; }
+  h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  h2 .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--surface2); color: var(--muted); }
+  .page-header { margin-bottom: 36px; }
+  .page-header h1 { font-size: 28px; font-weight: 800; letter-spacing: -.5px; }
+  .page-header p { color: var(--muted); margin-top: 4px; font-size: 14px; }
+  .page-header .range-badge { display: inline-block; margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 13px; font-size: 13px; color: var(--muted); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; position: relative; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--color, var(--accent)); }
+  .kpi-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-value { font-size: 30px; font-weight: 800; margin: 6px 0 4px; letter-spacing: -1px; }
+  .kpi-sub { font-size: 12px; color: var(--muted); }
+  .kpi-pct { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-top: 8px; display: inline-block; }
+  .pct-good { background: #dcfce7; color: var(--green); }
+  .pct-mid  { background: #fef9c3; color: var(--yellow); }
+  .pct-bad  { background: #fee2e2; color: var(--red); }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 20px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .chart-card.full { grid-column: 1 / -1; }
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .card-header-text { flex: 1; min-width: 0; }
+  .chart-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .chart-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .insight-btn { flex-shrink: 0; display: flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; font-family: var(--font); transition: border-color .15s, color .15s, background .15s; white-space: nowrap; }
+  .insight-btn:hover { border-color: var(--accent); color: var(--text); background: #eff6ff; }
+  .insight-btn.open { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+  .insight-btn .sev-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .insight-btn .chevron { width: 12px; height: 12px; transition: transform .22s; display: flex; align-items: center; }
+  .insight-btn.open .chevron { transform: rotate(180deg); }
+  .legend { display: flex; gap: 16px; margin: 10px 0 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .legend-line { width: 20px; height: 2px; }
+  .chart-wrap { position: relative; height: 220px; flex-shrink: 0; }
+  .chart-wrap.tall { height: 280px; }
+  .insight-drawer { overflow: hidden; max-height: 0; transition: max-height .3s ease, opacity .25s, margin-top .25s; opacity: 0; margin-top: 0; }
+  .insight-drawer.open { max-height: 700px; opacity: 1; margin-top: 14px; }
+  .insight-inner { border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 11px; }
+  .insight-item { display: flex; gap: 10px; align-items: flex-start; }
+  .insight-sev { flex-shrink: 0; margin-top: 5px; width: 8px; height: 8px; border-radius: 50%; }
+  .sev-alert { background: var(--red); }
+  .sev-warn  { background: var(--yellow); }
+  .sev-good  { background: var(--green); }
+  .sev-neutral { background: #cbd5e1; }
+  .insight-text { font-size: 13px; color: var(--muted); line-height: 1.65; }
+  .insight-text strong { color: var(--text); }
+  .pct-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pct-table th { color: var(--muted); font-weight: 600; text-align: left; padding: 7px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
+  .pct-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  .pct-table tr:last-child td { border-bottom: none; }
+  .data-notice { background: #fefce8; border: 1px solid #fde68a; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #92400e; line-height: 1.7; }
+  .data-notice strong { color: #78350f; }
+  .qi-notes { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .qi-note { background: #fefce8; border: 1px solid #fde68a; border-radius: 6px; padding: 7px 11px; font-size: 12px; color: #78350f; line-height: 1.5; }
+  .qi-note-label { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 2px; color: #92400e; }
+  footer { text-align: center; padding: 28px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">ED Provider Dashboard</span>
+  <span class="export-badge">Exported {{ export_date }}</span>
+</nav>
+
+<main>
+
+  <div class="page-header">
+    <h1>ED Provider Metrics — {{ username }}</h1>
+    <p>Seattle Children's Hospital · Emergency Department · You vs. Peer Attendings</p>
+    {% if month_list %}
+    <span class="range-badge">
+      {{ month_list[0].label }} – {{ month_list[-1].label }}
+      &nbsp;·&nbsp; {{ month_list|length }}-month view
+    </span>
+    {% endif %}
+  </div>
+
+  <!-- OVERVIEW -->
+  <section id="overview">
+    <h2>This Month at a Glance <span class="badge">{{ selected.month_label }}</span></h2>
+    <div class="kpi-grid">
+
+      {% set pctile = selected.patients_pctile %}
+      <div class="kpi-card" id="kpi-patients" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Patients Seen</div>
+        <div class="kpi-value">{{ selected.patients or '—' }}</div>
+        <div class="kpi-sub">All peers: {{ selected.patients_peers or '—' }}</div>
+      </div>
+
+      {% set pctile = selected.pts_per_hour_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile > 66 else ('#dc2626' if pctile is not none and pctile < 33 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Patients / Hour</div>
+        <div class="kpi-value">{{ selected.pts_per_hour_me or '—' }}</div>
+        <div class="kpi-sub">Peers avg: {{ selected.pts_per_hour_peers or '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile > 66 else ('pct-bad' if pctile < 33 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.returns72_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">72-Hr Return Rate</div>
+        <div class="kpi-value">{{ (selected.returns72_me|string + '%') if selected.returns72_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.returns72_peers|string + '%') if selected.returns72_peers is not none else '—' }} · Target: &lt;3.5%</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.readmits72_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">72-Hr Readmit Rate</div>
+        <div class="kpi-value">{{ (selected.readmits72_me|string + '%') if selected.readmits72_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.readmits72_peers|string + '%') if selected.readmits72_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.discharge_los_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Discharge LOS</div>
+        <div class="kpi-value">{{ (selected.discharge_los_me|string + 'h') if selected.discharge_los_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.discharge_los_peers|string + 'h') if selected.discharge_los_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.admit_los_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Admit LOS</div>
+        <div class="kpi-value">{{ (selected.admit_los_me|string + 'h') if selected.admit_los_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.admit_los_peers|string + 'h') if selected.admit_los_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.admission_rate_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Admission Rate</div>
+        <div class="kpi-value">{{ (selected.admission_rate_me|string + '%') if selected.admission_rate_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.admission_rate_peers|string + '%') if selected.admission_rate_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.bed_request_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Bed Request Time</div>
+        <div class="kpi-value">{{ (selected.bed_request_me|int|string + 'm') if selected.bed_request_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.bed_request_peers|int|string + 'm') if selected.bed_request_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.discharge_rate_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile > 66 else ('#dc2626' if pctile is not none and pctile < 33 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Discharge Rate</div>
+        <div class="kpi-value">{{ (selected.discharge_rate_me|string + '%') if selected.discharge_rate_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.discharge_rate_peers|string + '%') if selected.discharge_rate_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile > 66 else ('pct-bad' if pctile < 33 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.lab_orders_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Lab Orders</div>
+        <div class="kpi-value">{{ (selected.lab_orders_me|string + '%') if selected.lab_orders_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.lab_orders_peers|string + '%') if selected.lab_orders_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.rad_orders_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">Radiology Orders</div>
+        <div class="kpi-value">{{ (selected.rad_orders_me|string + '%') if selected.rad_orders_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.rad_orders_peers|string + '%') if selected.rad_orders_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+      {% set pctile = selected.icu_rate_pctile %}
+      <div class="kpi-card" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
+        <div class="kpi-label">ICU Admission Rate</div>
+        <div class="kpi-value">{{ (selected.icu_rate_me|string + '%') if selected.icu_rate_me is not none else '—' }}</div>
+        <div class="kpi-sub">Peers: {{ (selected.icu_rate_peers|string + '%') if selected.icu_rate_peers is not none else '—' }}</div>
+        {% if pctile is not none %}<div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">{{ pctile|round(0)|int }}th pct</div>{% endif %}
+      </div>
+
+    </div>
+
+    <!-- PERFORMANCE SUMMARY -->
+    <div style="margin-top:20px;background:#fff;border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:18px 22px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Performance Summary</div>
+      <div id="ins-content-overview">
+        {% set key = 'overview_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+          {% for item in insights_data[key] %}
+          <div class="insight-item" style="margin-bottom:8px;">
+            <div class="insight-sev sev-{{ item.severity }}" style="margin-top:5px;flex-shrink:0;width:8px;height:8px;border-radius:50%;"></div>
+            <div class="insight-text">{{ item.text | safe }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="color:#64748b;font-size:13px;">No insights generated yet — open the live dashboard and click the Insights button to generate them.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- THROUGHPUT -->
+  <section id="throughput">
+    <h2>Throughput</h2>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Discharge Time (Hours)</div>
+            <div class="chart-sub">How long from arrival to discharge. Lower = faster.</div>
+          </div>
+          {% set key = 'dischargeLOS_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-dischargeLOS" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-{{ insights_data[key] | map(attribute='severity') | list | sort | last }}"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="dischargeLOS"></canvas></div>
+        {% set key = 'dischargeLOS_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-dischargeLOS">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('dischargeLOS') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Admitted Patient Wait Time (Hours)</div>
+            <div class="chart-sub">Time from arrival to leaving the ED for an inpatient bed. Lower = better.</div>
+          </div>
+          {% set key = 'admitLOS_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-admitLOS" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="admitLOS"></canvas></div>
+        {% set key = 'admitLOS_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-admitLOS">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('admitLOS') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Time to Bed Request (Minutes)</div>
+            <div class="chart-sub">How quickly you initiate a bed request after the patient arrives.</div>
+          </div>
+          {% set key = 'bedRequest_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-bedRequest" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#7c3aed"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="bedRequest"></canvas></div>
+        {% set key = 'bedRequest_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-bedRequest">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('bedRequest') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Admission Rate (%)</div>
+            <div class="chart-sub">What percent of your patients get admitted.</div>
+          </div>
+          {% set key = 'admissionRate_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-admissionRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#d97706"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="admissionRate"></canvas></div>
+        {% set key = 'admissionRate_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-admissionRate">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('admissionRate') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Radiology Orders by Disposition</div>
+            <div class="chart-sub">How often you ordered imaging — split by admitted vs discharged.</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:230px"><canvas id="radByDispo"></canvas></div>
+        {{ chart_notes('radByDispo') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Lab Orders (%)</div>
+            <div class="chart-sub">How often you ordered labs.</div>
+          </div>
+          {% set key = 'labOrders_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-labOrders" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="labOrders"></canvas></div>
+        {% set key = 'labOrders_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-labOrders">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('labOrders') }}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SAFETY -->
+  <section id="safety">
+    <h2>Safety</h2>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Who Came Back Within 72 Hours (%)</div>
+            <div class="chart-sub">Unplanned return visits within 3 days.</div>
+          </div>
+          {% set key = 'returns72_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-returns72" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#f97316"></div>3-Mo Avg</div>
+        </div>
+        <div class="chart-wrap"><canvas id="returns72"></canvas></div>
+        {% set key = 'returns72_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-returns72">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('returns72') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Who Came Back and Got Admitted (%)</div>
+            <div class="chart-sub">Returns that resulted in admission — highest-severity safety signal.</div>
+          </div>
+          {% set key = 'readmits72_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-readmits72" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#f97316"></div>3-Mo Avg</div>
+        </div>
+        <div class="chart-wrap"><canvas id="readmits72"></canvas></div>
+        {% set key = 'readmits72_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-readmits72">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('readmits72') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">ICU Admission Rate (%)</div>
+            <div class="chart-sub">How often your admitted patients required intensive care.</div>
+          </div>
+          {% set key = 'icuRate_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-icuRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="chart-wrap"><canvas id="icuRate"></canvas></div>
+        {% set key = 'icuRate_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-icuRate">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('icuRate') }}
+      </div>
+
+    </div>
+  </section>
+
+  <!-- VOLUME & PRODUCTIVITY -->
+  <section id="productivity">
+    <h2>Volume &amp; Productivity</h2>
+    <div class="chart-grid">
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Seen Per Month</div>
+            <div class="chart-sub">Total patients you were the first attending on.</div>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="volume"></canvas></div>
+        {{ chart_notes('volume') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patients Per Hour</div>
+            <div class="chart-sub">How many new patients you took on per hour. Higher = more productive.</div>
+          </div>
+          {% set key = 'ptsPerHour_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-ptsPerHour" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="ptsPerHour"></canvas></div>
+        {% set key = 'ptsPerHour_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-ptsPerHour">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('ptsPerHour') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Discharge Rate (%)</div>
+            <div class="chart-sub">What percent of your patients went home (not admitted).</div>
+          </div>
+          {% set key = 'dischargeRate_' ~ selected.month ~ '_' ~ selected.year %}
+          {% if key in insights_data %}
+          <button class="insight-btn" data-target="ins-dischargeRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          {% endif %}
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+        </div>
+        <div class="chart-wrap"><canvas id="dischargeRate"></canvas></div>
+        {% set key = 'dischargeRate_' ~ selected.month ~ '_' ~ selected.year %}
+        {% if key in insights_data %}
+        <div class="insight-drawer" id="ins-dischargeRate">
+          <div class="insight-inner">
+            {% for item in insights_data[key] %}<div class="insight-item"><div class="insight-sev sev-{{ item.severity }}"></div><div class="insight-text">{{ item.text | safe }}</div></div>{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {{ chart_notes('dischargeRate') }}
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Patient Acuity Mix Over Time (ESI)</div>
+            <div class="chart-sub">Distribution across ESI levels.</div>
+          </div>
+        </div>
+        <div class="chart-wrap tall"><canvas id="esiChart"></canvas></div>
+      </div>
+
+    </div>
+
+    <!-- PERCENTILE TABLE -->
+    <div class="chart-card" style="margin-top:20px;">
+      <div class="card-header">
+        <div class="card-header-text">
+          <div class="chart-title">Full Ranking Summary — All Metrics</div>
+          <div class="chart-sub">Where you stand vs peers each month. Green = better than most peers. Red = worse than most peers.</div>
+        </div>
+      </div>
+      <table class="pct-table" style="margin-top:16px;">
+        <thead><tr><th>Metric</th>{% for m in month_list %}<th>{{ m.label.split(' ')[0] }}</th>{% endfor %}</tr></thead>
+        <tbody id="pctTableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- BILLING -->
+  <section id="billing">
+    <h2>Billing</h2>
+    <div class="data-notice">
+      <strong>Note:</strong> WRVU and physician charges are rendered as charts in the PDFs and cannot be extracted as text. Only visit-level counts (Level 3–5) are parsed.
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title" id="billingChartTitle">Visit Complexity — {{ selected.month_label }}</div>
+            <div class="chart-sub">Level 3–5 = increasing complexity of billed visits.</div>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="billingDist"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>ED Provider Metrics · {{ username }} · Exported {{ export_date }} · For internal review only</footer>
+
+<script>
+const months = {{ month_labels | tojson | safe }};
+const S = months.map(m => m.split(' ')[0]);
+const D = {{ metrics_json | tojson | safe }};
+const selIdx = {{ sel_idx | tojson }};
+
+function roll3(arr) {
+  return arr.map((_, i) => i < 2 ? null : parseFloat(((arr[i-2]+arr[i-1]+arr[i])/3).toFixed(2)));
+}
+
+const charts = {};
+Chart.defaults.color = '#64748b';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+const gc = 'rgba(0,0,0,0.07)';
+const tip = { backgroundColor:'#1e293b', borderColor:'rgba(37,99,235,0.25)', borderWidth:1, titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:11, cornerRadius:7 };
+
+function baseOpts(yLabel='', beginZero=false) {
+  return { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+    plugins:{ legend:{display:false}, tooltip:tip },
+    scales:{ x:{grid:{color:gc},ticks:{color:'#64748b'}},
+      y:{beginAtZero:beginZero,grid:{color:gc},ticks:{color:'#64748b'},
+         title:{display:!!yLabel,text:yLabel,color:'#64748b',font:{size:11}}} }
+  };
+}
+function ds(label, vals, color, dashed=false, fill=true) {
+  return { label, data:vals, borderColor:color,
+    backgroundColor: fill && !dashed ? color+'22' : 'transparent',
+    borderWidth: dashed ? 1.5 : 2.5, borderDash: dashed ? [5,4] : [],
+    pointRadius: dashed ? 0 : 4, pointHoverRadius:6, fill: fill && !dashed, tension:0.35 };
+}
+function line(id, datasets, opts={}) {
+  if (!document.getElementById(id)) return;
+  charts[id] = new Chart(document.getElementById(id).getContext('2d'), {
+    type:'line', data:{labels:S, datasets}, options: baseOpts(opts.y, opts.z??false),
+  });
+}
+
+if (D.dischargeLOS) line('dischargeLOS', [ds('You',D.dischargeLOS.me,'#2563eb'), ds('Peers',D.dischargeLOS.peers,'#94a3b8',true,false)], {y:'Hours'});
+if (D.admitLOS) line('admitLOS', [ds('You',D.admitLOS.me,'#dc2626'), ds('Peers',D.admitLOS.peers,'#94a3b8',true,false)], {y:'Hours'});
+if (D.bedRequest) line('bedRequest', [ds('You',D.bedRequest.me,'#7c3aed'), ds('Peers',D.bedRequest.peers,'#94a3b8',true,false)], {y:'Minutes'});
+if (D.admissionRate) line('admissionRate', [ds('You',D.admissionRate.me,'#d97706'), ds('Peers',D.admissionRate.peers,'#94a3b8',true,false)], {y:'%', z:true});
+
+if (D.radByDispo) {
+  charts['radByDispo'] = new Chart(document.getElementById('radByDispo').getContext('2d'), {
+    type:'bar', data:{ labels:S, datasets:[
+      { label:'You (Admitted)', data:D.radByDispo.admitMe, backgroundColor:'rgba(37,99,235,0.75)', borderRadius:3 },
+      { label:'Peers (Admitted)', data:D.radByDispo.admitPeers, backgroundColor:'rgba(37,99,235,0.25)', borderRadius:3 },
+      { label:'You (Discharged)', data:D.radByDispo.discMe, backgroundColor:'rgba(220,38,38,0.65)', borderRadius:3 },
+      { label:'Peers (Discharged)', data:D.radByDispo.discPeers, backgroundColor:'rgba(220,38,38,0.2)', borderRadius:3 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
+      scales:{ x:{grid:{color:gc}}, y:{beginAtZero:true,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},
+        title:{display:true,text:'% with Imaging',color:'#64748b',font:{size:11}}} }
+    }
+  });
+}
+
+if (D.labOrders) line('labOrders', [ds('You',D.labOrders.me,'#16a34a'), ds('Peers',D.labOrders.peers,'#94a3b8',true,false)], {y:'%'});
+
+if (D.returns72) {
+  charts['returns72'] = new Chart(document.getElementById('returns72').getContext('2d'), {
+    type:'line', data:{ labels:S, datasets:[
+      ds('You',D.returns72.me,'#dc2626'), ds('Peers',D.returns72.peers,'#94a3b8',true,false),
+      ds('3-Mo Avg',roll3(D.returns72.me),'#f97316',true,false),
+    ]}, options: baseOpts('%', true),
+  });
+}
+if (D.readmits72) {
+  charts['readmits72'] = new Chart(document.getElementById('readmits72').getContext('2d'), {
+    type:'line', data:{ labels:S, datasets:[
+      ds('You',D.readmits72.me,'#dc2626'), ds('Peers',D.readmits72.peers,'#94a3b8',true,false),
+      ds('3-Mo Avg',roll3(D.readmits72.me),'#f97316',true,false),
+    ]}, options: baseOpts('%', true),
+  });
+}
+if (D.icuRate) {
+  charts['icuRate'] = new Chart(document.getElementById('icuRate').getContext('2d'), {
+    type:'bar', data:{ labels:S, datasets:[
+      { label:'You', data:D.icuRate.me, backgroundColor:D.icuRate.me.map(v=>v>0?'rgba(220,38,38,0.7)':'rgba(22,163,74,0.6)'), borderRadius:5 },
+      { label:'Peers avg', data:D.icuRate.peers, backgroundColor:'rgba(148,163,184,0.4)', borderRadius:5 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
+      scales:{ x:{grid:{color:gc}}, y:{beginAtZero:true,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},
+        title:{display:true,text:'% of Patients',color:'#64748b',font:{size:11}}} }
+    }
+  });
+}
+if (D.patients) {
+  charts['volume'] = new Chart(document.getElementById('volume').getContext('2d'), {
+    type:'bar', data:{ labels:S, datasets:[{ label:'Patients', data:D.patients.me, borderRadius:6,
+      backgroundColor:D.patients.me.map((_,i)=>i===selIdx?'rgba(220,38,38,0.6)':'rgba(37,99,235,0.55)') }]},
+    options:{ responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:tip},
+      scales:{x:{grid:{color:gc}},y:{beginAtZero:true,grid:{color:gc},title:{display:true,text:'Patients',color:'#64748b',font:{size:11}}}} }
+  });
+}
+if (D.ptsPerHour) line('ptsPerHour', [ds('You',D.ptsPerHour.me,'#2563eb'), ds('Peers',D.ptsPerHour.peers,'#94a3b8',true,false)], {y:'Pts/Hr'});
+if (D.dischargeRate) line('dischargeRate', [ds('You',D.dischargeRate.me,'#16a34a'), ds('Peers',D.dischargeRate.peers,'#94a3b8',true,false)], {y:'%'});
+
+if (D.esi) {
+  charts['esiChart'] = new Chart(document.getElementById('esiChart').getContext('2d'), {
+    type:'bar', data:{ labels:S, datasets:[
+      {label:'ESI-1 Critical', data:D.esi.esi1, backgroundColor:'rgba(220,38,38,0.85)'},
+      {label:'ESI-2 Emergency',data:D.esi.esi2, backgroundColor:'rgba(217,119,6,0.8)'},
+      {label:'ESI-3 Urgent',   data:D.esi.esi3, backgroundColor:'rgba(37,99,235,0.65)'},
+      {label:'ESI-4 Non-Urgent',data:D.esi.esi4, backgroundColor:'rgba(22,163,74,0.55)'},
+      {label:'ESI-5 Minor',    data:D.esi.esi5, backgroundColor:'rgba(124,58,237,0.45)'},
+    ]},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}},
+        tooltip:{...tip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw}%`}}},
+      scales:{ x:{stacked:true,grid:{color:gc}}, y:{stacked:true,min:0,max:100,grid:{color:gc},
+        ticks:{color:'#64748b',callback:v=>v+'%'},title:{display:true,text:'% of Patients',color:'#64748b',font:{size:11}}} }
+    }
+  });
+}
+
+const bL3 = D.billing && D.billing.level3[selIdx] != null ? D.billing.level3[selIdx] : null;
+const bL4 = D.billing && D.billing.level4[selIdx] != null ? D.billing.level4[selIdx] : null;
+const bL5 = D.billing && D.billing.level5[selIdx] != null ? D.billing.level5[selIdx] : null;
+const bTotal = (bL3||0)+(bL4||0)+(bL5||0);
+if (bTotal > 0) {
+  const bPct = [0, parseFloat((bL3/bTotal*100).toFixed(1)), parseFloat((bL4/bTotal*100).toFixed(1)), parseFloat((bL5/bTotal*100).toFixed(1))];
+  new Chart(document.getElementById('billingDist').getContext('2d'), {
+    type:'bar', data:{labels:['Level 2','Level 3','Level 4','Level 5'],datasets:[{
+      data:bPct, borderRadius:6,
+      backgroundColor:['rgba(22,163,74,0.5)','rgba(37,99,235,0.7)','rgba(124,58,237,0.7)','rgba(217,119,6,0.7)'],
+    }]},
+    options:{ responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{...tip,callbacks:{label:ctx=>` ${ctx.raw}% of visits`}}},
+      scales:{x:{grid:{color:gc}},y:{beginAtZero:true,grid:{color:gc},ticks:{color:'#64748b',callback:v=>v+'%'},
+        title:{display:true,text:'% of Billed Visits',color:'#64748b',font:{size:11}}}} }
+  });
+} else {
+  const wrap = document.getElementById('billingDist') ? document.getElementById('billingDist').closest('.chart-wrap') : null;
+  if (wrap) wrap.innerHTML = '<p style="color:#64748b;font-size:13px;padding:20px;">Billing counts not available for this month.</p>';
+}
+
+// Percentile table
+const pctRows = [];
+if (D.dischargeLOS && D.dischargeLOS.pctile) pctRows.push({label:'Discharge Time',   data:D.dischargeLOS.pctile,   lowerBetter:true});
+if (D.admitLOS && D.admitLOS.pctile)         pctRows.push({label:'Admit Wait Time',  data:D.admitLOS.pctile,       lowerBetter:true});
+if (D.bedRequest && D.bedRequest.pctile)     pctRows.push({label:'Bed Request Time', data:D.bedRequest.pctile,     lowerBetter:true});
+if (D.admissionRate && D.admissionRate.pctile) pctRows.push({label:'Admission Rate', data:D.admissionRate.pctile,  lowerBetter:false});
+if (D.returns72 && D.returns72.pctile)       pctRows.push({label:'72-Hr Returns',    data:D.returns72.pctile,      lowerBetter:true});
+if (D.readmits72 && D.readmits72.pctile)     pctRows.push({label:'72-Hr Readmits',   data:D.readmits72.pctile,     lowerBetter:true});
+if (D.radOrders && D.radOrders.pctile)       pctRows.push({label:'Radiology Orders', data:D.radOrders.pctile,      lowerBetter:false});
+if (D.labOrders && D.labOrders.pctile)       pctRows.push({label:'Lab Orders',       data:D.labOrders.pctile,      lowerBetter:false});
+if (D.ptsPerHour && D.ptsPerHour.pctile)     pctRows.push({label:'Patients/Hour',    data:D.ptsPerHour.pctile,     lowerBetter:false});
+if (D.dischargeRate && D.dischargeRate.pctile) pctRows.push({label:'Discharge Rate', data:D.dischargeRate.pctile,  lowerBetter:false});
+
+function pctColor(v, lb) {
+  if(v===null) return '#64748b';
+  return (lb?v<33:v>66)?'#16a34a':(lb?v>66:v<33)?'#dc2626':'#d97706';
+}
+const tbody = document.getElementById('pctTableBody');
+pctRows.forEach(row => {
+  const tr = document.createElement('tr');
+  let h = `<td style="font-weight:600;color:#1e293b;">${row.label}</td>`;
+  row.data.forEach(v => {
+    const c = pctColor(v, row.lowerBetter);
+    const bg = c==='#16a34a'?'#dcfce7':c==='#dc2626'?'#fee2e2':'#fef9c3';
+    h += `<td style="color:${c};font-weight:700;background:${bg};border-radius:5px;">${v===null?'—':Math.round(v)+'th'}</td>`;
+  });
+  tr.innerHTML = h;
+  tbody.appendChild(tr);
+});
+
+// Insight toggle (embedded data — no fetch needed)
+function toggleInsight(btn) {
+  const targetId = btn.dataset.target;
+  const drawer = document.getElementById(targetId);
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains('open');
+  document.querySelectorAll('.insight-drawer.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.insight-btn.open').forEach(b => b.classList.remove('open'));
+  if (!isOpen) {
+    drawer.classList.add('open');
+    btn.classList.add('open');
+  }
+}
+
+// KPI card → chart navigation
+const kpiTargets = {
+  'kpi-patients':'volume','kpi-ptsPerHour':'ptsPerHour','kpi-returns72':'returns72',
+  'kpi-readmits72':'readmits72','kpi-dischargeLOS':'dischargeLOS','kpi-admitLOS':'admitLOS',
+  'kpi-admissionRate':'admissionRate','kpi-bedRequest':'bedRequest',
+  'kpi-dischargeRate':'dischargeRate','kpi-labOrders':'labOrders',
+  'kpi-radOrders':'radByDispo','kpi-icuRate':'icuRate',
+};
+Object.entries(kpiTargets).forEach(([cardId, canvasId]) => {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.style.cursor = 'pointer';
+  card.title = 'Click to jump to chart';
+  card.addEventListener('click', () => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const chartCard = canvas.closest('.chart-card');
+    if (!chartCard) return;
+    window.scrollTo({ top: chartCard.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+  });
+});
+
+// QI notes embedded — show as markers on charts
+const _notes = {{ notes_data | tojson | safe }};
+
+function noteKey(chartKey, idx) {
+  const mo = months[idx] || '';
+  const parts = mo.split(' ');
+  if (parts.length < 2) return null;
+  const monthNum = new Date(Date.parse(parts[0] + ' 1')).getMonth() + 1;
+  return { key: `${chartKey}_${monthNum}_${parts[1]}`, month: monthNum, year: parseInt(parts[1]) };
+}
+
+function addNoteMarkers(chartKey) {
+  const chart = charts[chartKey];
+  if (!chart || !chart.data.datasets[0]) return;
+  const ds0 = chart.data.datasets[0];
+  const styles = [], radii = [], colors = [];
+  for (let i = 0; i < (ds0.data || []).length; i++) {
+    const nk = noteKey(chartKey, i);
+    const hasNote = nk && _notes[nk.key];
+    styles.push(hasNote ? 'rectRot' : 'circle');
+    radii.push(hasNote ? 7 : 4);
+    colors.push(hasNote ? '#f59e0b' : ds0.borderColor);
+  }
+  ds0.pointStyle = styles;
+  ds0.pointRadius = radii;
+  ds0.pointBackgroundColor = colors;
+
+  // Add tooltip showing note text
+  chart.options.plugins.tooltip = {
+    ...chart.options.plugins.tooltip,
+    callbacks: {
+      afterBody: function(items) {
+        if (!items.length) return '';
+        const nk = noteKey(chartKey, items[0].dataIndex);
+        if (nk && _notes[nk.key]) return '\n📝 ' + _notes[nk.key].text;
+        return '';
+      }
+    }
+  };
+  chart.update('none');
+}
+
+// Apply note markers to all line charts after creation
+Object.keys(charts).forEach(chartKey => {
+  if (charts[chartKey] && charts[chartKey].config.type === 'line') {
+    addNoteMarkers(chartKey);
+  }
+});
+</script>
+</body>
+</html>

@@ -125,10 +125,6 @@
   .insight-text strong { color: var(--text); }
 
   /* PERCENTILE TABLE */
-  .pct-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .pct-table th { color: var(--muted); font-weight: 600; text-align: left; padding: 7px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
-  .pct-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
-  .pct-table tr:last-child td { border-bottom: none; }
 
   /* DATA NOTICE */
   .data-notice {
@@ -199,19 +195,6 @@
 </div>
 {% else %}
 
-{% if month_list %}
-<div style="padding:12px 24px;border-bottom:1px solid #e2e8f0;background:#fff;">
-  <select onchange="window.location='/dashboard?month='+this.value.split('/')[0]+'&year='+this.value.split('/')[1]"
-          style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
-    {% for m in month_list %}
-    <option value="{{ m.month }}/{{ m.year }}" {% if loop.index0 == sel_idx %}selected{% endif %}>
-      {{ m.label }}
-    </option>
-    {% endfor %}
-  </select>
-</div>
-{% endif %}
-
 <main>
 
   <!-- HEADER -->
@@ -228,14 +211,26 @@
 
   <!-- OVERVIEW -->
   <section id="overview">
-    <h2>This Month at a Glance <span class="badge">{{ selected.month_label if selected.month_label is defined else '' }}</span></h2>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <h2 style="margin:0;">This Month at a Glance</h2>
+      {% if month_list %}
+      <select onchange="window.location='/dashboard?month='+this.value.split('/')[0]+'&year='+this.value.split('/')[1]"
+              style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;font-weight:600;color:#1e293b;background:#fff;cursor:pointer;">
+        {% for m in month_list %}
+        <option value="{{ m.month }}/{{ m.year }}" {% if loop.index0 == sel_idx %}selected{% endif %}>
+          {{ m.label }}
+        </option>
+        {% endfor %}
+      </select>
+      {% endif %}
+    </div>
     <div class="kpi-grid">
 
-      <div class="kpi-card" style="--color:#2563eb" id="kpi-patients">
+      {% set pctile = selected.patients_pctile %}
+      <div class="kpi-card" id="kpi-patients" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Patients Seen</div>
         <div class="kpi-value">{{ selected.patients or '—' }}</div>
         <div class="kpi-sub">All peers: {{ selected.patients_peers or '—' }}</div>
-        {% set pctile = selected.patients_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -243,11 +238,11 @@
         {% endif %}
       </div>
 
-      <div class="kpi-card" style="--color:#2563eb" id="kpi-ptsPerHour">
+      {% set pctile = selected.pts_per_hour_pctile %}
+      <div class="kpi-card" id="kpi-ptsPerHour" style="--color:{{ '#16a34a' if pctile is not none and pctile > 66 else ('#dc2626' if pctile is not none and pctile < 33 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Patients / Hour</div>
         <div class="kpi-value">{{ selected.pts_per_hour_me or '—' }}</div>
         <div class="kpi-sub">Peers avg: {{ selected.pts_per_hour_peers or '—' }}</div>
-        {% set pctile = selected.pts_per_hour_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile > 66 else ('pct-bad' if pctile < 33 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -256,11 +251,11 @@
         <span class="kpi-goal-badge" id="gbadge-ptsPerHour"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#dc2626" id="kpi-returns72">
+      {% set pctile = selected.returns72_pctile %}
+      <div class="kpi-card" id="kpi-returns72" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">72-Hr Return Rate</div>
         <div class="kpi-value">{{ (selected.returns72_me|string + '%') if selected.returns72_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.returns72_peers|string + '%') if selected.returns72_peers is not none else '—' }} · Target: &lt;3.5%</div>
-        {% set pctile = selected.returns72_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -269,11 +264,11 @@
         <span class="kpi-goal-badge" id="gbadge-returns72"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#dc2626" id="kpi-readmits72">
+      {% set pctile = selected.readmits72_pctile %}
+      <div class="kpi-card" id="kpi-readmits72" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">72-Hr Readmit Rate</div>
         <div class="kpi-value">{{ (selected.readmits72_me|string + '%') if selected.readmits72_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.readmits72_peers|string + '%') if selected.readmits72_peers is not none else '—' }}</div>
-        {% set pctile = selected.readmits72_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -282,11 +277,11 @@
         <span class="kpi-goal-badge" id="gbadge-readmits72"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#16a34a" id="kpi-dischargeLOS">
+      {% set pctile = selected.discharge_los_pctile %}
+      <div class="kpi-card" id="kpi-dischargeLOS" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Discharge LOS</div>
         <div class="kpi-value">{{ (selected.discharge_los_me|string + 'h') if selected.discharge_los_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.discharge_los_peers|string + 'h') if selected.discharge_los_peers is not none else '—' }}</div>
-        {% set pctile = selected.discharge_los_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -295,11 +290,11 @@
         <span class="kpi-goal-badge" id="gbadge-dischargeLOS"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#d97706" id="kpi-admitLOS">
+      {% set pctile = selected.admit_los_pctile %}
+      <div class="kpi-card" id="kpi-admitLOS" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Admit LOS</div>
         <div class="kpi-value">{{ (selected.admit_los_me|string + 'h') if selected.admit_los_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.admit_los_peers|string + 'h') if selected.admit_los_peers is not none else '—' }}</div>
-        {% set pctile = selected.admit_los_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -308,11 +303,11 @@
         <span class="kpi-goal-badge" id="gbadge-admitLOS"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#d97706" id="kpi-admissionRate">
+      {% set pctile = selected.admission_rate_pctile %}
+      <div class="kpi-card" id="kpi-admissionRate" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Admission Rate</div>
         <div class="kpi-value">{{ (selected.admission_rate_me|string + '%') if selected.admission_rate_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.admission_rate_peers|string + '%') if selected.admission_rate_peers is not none else '—' }}</div>
-        {% set pctile = selected.admission_rate_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -321,11 +316,11 @@
         <span class="kpi-goal-badge" id="gbadge-admissionRate"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#16a34a" id="kpi-bedRequest">
+      {% set pctile = selected.bed_request_pctile %}
+      <div class="kpi-card" id="kpi-bedRequest" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Bed Request Time</div>
         <div class="kpi-value">{{ (selected.bed_request_me|int|string + 'm') if selected.bed_request_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.bed_request_peers|int|string + 'm') if selected.bed_request_peers is not none else '—' }}</div>
-        {% set pctile = selected.bed_request_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -334,11 +329,11 @@
         <span class="kpi-goal-badge" id="gbadge-bedRequest"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#16a34a" id="kpi-dischargeRate">
+      {% set pctile = selected.discharge_rate_pctile %}
+      <div class="kpi-card" id="kpi-dischargeRate" style="--color:{{ '#16a34a' if pctile is not none and pctile > 66 else ('#dc2626' if pctile is not none and pctile < 33 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Discharge Rate</div>
         <div class="kpi-value">{{ (selected.discharge_rate_me|string + '%') if selected.discharge_rate_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.discharge_rate_peers|string + '%') if selected.discharge_rate_peers is not none else '—' }}</div>
-        {% set pctile = selected.discharge_rate_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile > 66 else ('pct-bad' if pctile < 33 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -347,11 +342,11 @@
         <span class="kpi-goal-badge" id="gbadge-dischargeRate"></span>
       </div>
 
-      <div class="kpi-card" style="--color:#2563eb" id="kpi-labOrders">
+      {% set pctile = selected.lab_orders_pctile %}
+      <div class="kpi-card" id="kpi-labOrders" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Lab Orders</div>
         <div class="kpi-value">{{ (selected.lab_orders_me|string + '%') if selected.lab_orders_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.lab_orders_peers|string + '%') if selected.lab_orders_peers is not none else '—' }}</div>
-        {% set pctile = selected.lab_orders_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -359,11 +354,11 @@
         {% endif %}
       </div>
 
-      <div class="kpi-card" style="--color:#7c3aed" id="kpi-radOrders">
+      {% set pctile = selected.rad_orders_pctile %}
+      <div class="kpi-card" id="kpi-radOrders" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">Radiology Orders</div>
         <div class="kpi-value">{{ (selected.rad_orders_me|string + '%') if selected.rad_orders_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.rad_orders_peers|string + '%') if selected.rad_orders_peers is not none else '—' }}</div>
-        {% set pctile = selected.rad_orders_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -371,11 +366,11 @@
         {% endif %}
       </div>
 
-      <div class="kpi-card" style="--color:#dc2626" id="kpi-icuRate">
+      {% set pctile = selected.icu_rate_pctile %}
+      <div class="kpi-card" id="kpi-icuRate" style="--color:{{ '#16a34a' if pctile is not none and pctile < 33 else ('#dc2626' if pctile is not none and pctile > 66 else ('#d97706' if pctile is not none else '#2563eb')) }}">
         <div class="kpi-label">ICU Admission Rate</div>
         <div class="kpi-value">{{ (selected.icu_rate_me|string + '%') if selected.icu_rate_me is not none else '—' }}</div>
         <div class="kpi-sub">Peers: {{ (selected.icu_rate_peers|string + '%') if selected.icu_rate_peers is not none else '—' }}</div>
-        {% set pctile = selected.icu_rate_pctile %}
         {% if pctile is not none %}
         <div class="kpi-pct {{ 'pct-good' if pctile < 33 else ('pct-bad' if pctile > 66 else 'pct-mid') }}">
           {{ pctile|round(0)|int }}th pct
@@ -412,70 +407,22 @@
       <div class="chart-card">
         <div class="card-header">
           <div class="card-header-text">
-            <div class="chart-title">Discharge Time (Hours)</div>
-            <div class="chart-sub">How long from arrival to discharge. Lower = faster.</div>
+            <div class="chart-title">Discharge Rate (%)</div>
+            <div class="chart-sub">What percent of your patients went home (not admitted). Higher is generally better for throughput.</div>
           </div>
-          <button class="insight-btn" data-target="ins-dischargeLOS" onclick="toggleInsight(this)">
+          <button class="insight-btn" data-target="ins-dischargeRate" onclick="toggleInsight(this)">
             <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
         <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
           <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
           <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
         </div>
-        <div class="chart-wrap"><canvas id="dischargeLOS"></canvas></div>
-        <div class="insight-drawer" id="ins-dischargeLOS">
-          <div class="insight-inner" id="ins-content-dischargeLOS">
-            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="chart-card">
-        <div class="card-header">
-          <div class="card-header-text">
-            <div class="chart-title">Admitted Patient Wait Time (Hours)</div>
-            <div class="chart-sub">Time from arrival to leaving the ED for an inpatient bed. Lower = better.</div>
-          </div>
-          <button class="insight-btn" data-target="ins-admitLOS" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-neutral"></span>Insights
-            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          </button>
-        </div>
-        <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
-          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
-          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
-        </div>
-        <div class="chart-wrap"><canvas id="admitLOS"></canvas></div>
-        <div class="insight-drawer" id="ins-admitLOS">
-          <div class="insight-inner" id="ins-content-admitLOS">
-            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="chart-card">
-        <div class="card-header">
-          <div class="card-header-text">
-            <div class="chart-title">Time to Bed Request (Minutes)</div>
-            <div class="chart-sub">How quickly you initiate a bed request after the patient arrives.</div>
-          </div>
-          <button class="insight-btn" data-target="ins-bedRequest" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-neutral"></span>Insights
-            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          </button>
-        </div>
-        <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:#7c3aed"></div>You</div>
-          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
-          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
-        </div>
-        <div class="chart-wrap"><canvas id="bedRequest"></canvas></div>
-        <div class="insight-drawer" id="ins-bedRequest">
-          <div class="insight-inner" id="ins-content-bedRequest">
+        <div class="chart-wrap"><canvas id="dischargeRate"></canvas></div>
+        <div class="insight-drawer" id="ins-dischargeRate">
+          <div class="insight-inner" id="ins-content-dischargeRate">
             <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
           </div>
         </div>
@@ -508,17 +455,47 @@
       <div class="chart-card">
         <div class="card-header">
           <div class="card-header-text">
-            <div class="chart-title">Radiology Orders by Disposition</div>
-            <div class="chart-sub">How often you ordered imaging — split by patients who were admitted vs discharged.</div>
+            <div class="chart-title">Discharge Time (Hours)</div>
+            <div class="chart-sub">How long from arrival to discharge. Lower = faster.</div>
           </div>
-          <button class="insight-btn" data-target="ins-radByDispo" onclick="toggleInsight(this)">
+          <button class="insight-btn" data-target="ins-dischargeLOS" onclick="toggleInsight(this)">
             <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
-        <div class="chart-wrap" style="height:230px"><canvas id="radByDispo"></canvas></div>
-        <div class="insight-drawer" id="ins-radByDispo">
-          <div class="insight-inner" id="ins-content-radByDispo">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="dischargeLOS"></canvas></div>
+        <div class="insight-drawer" id="ins-dischargeLOS">
+          <div class="insight-inner" id="ins-content-dischargeLOS">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Time to Bed Request (Minutes)</div>
+            <div class="chart-sub">How quickly you initiate a bed request after the patient arrives.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-bedRequest" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#7c3aed"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="bedRequest"></canvas></div>
+        <div class="insight-drawer" id="ins-bedRequest">
+          <div class="insight-inner" id="ins-content-bedRequest">
             <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
           </div>
         </div>
@@ -527,21 +504,45 @@
       <div class="chart-card">
         <div class="card-header">
           <div class="card-header-text">
-            <div class="chart-title">Lab Orders (%)</div>
-            <div class="chart-sub">How often you ordered labs. You run consistently below peer average.</div>
+            <div class="chart-title">Admitted Patient Wait Time (Hours)</div>
+            <div class="chart-sub">Time from arrival to leaving the ED for an inpatient bed. Lower = better.</div>
           </div>
-          <button class="insight-btn" data-target="ins-labOrders" onclick="toggleInsight(this)">
+          <button class="insight-btn" data-target="ins-admitLOS" onclick="toggleInsight(this)">
             <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
         <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
+          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
+        </div>
+        <div class="chart-wrap"><canvas id="admitLOS"></canvas></div>
+        <div class="insight-drawer" id="ins-admitLOS">
+          <div class="insight-inner" id="ins-content-admitLOS">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">ICU Admission Rate (%)</div>
+            <div class="chart-sub">How often your admitted patients required intensive care.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-icuRate" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
           <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
         </div>
-        <div class="chart-wrap"><canvas id="labOrders"></canvas></div>
-        <div class="insight-drawer" id="ins-labOrders">
-          <div class="insight-inner" id="ins-content-labOrders">
+        <div class="chart-wrap"><canvas id="icuRate"></canvas></div>
+        <div class="insight-drawer" id="ins-icuRate">
+          <div class="insight-inner" id="ins-content-icuRate">
             <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
           </div>
         </div>
@@ -606,21 +607,42 @@
       <div class="chart-card">
         <div class="card-header">
           <div class="card-header-text">
-            <div class="chart-title">ICU Admission Rate (%)</div>
-            <div class="chart-sub">How often your admitted patients required intensive care.</div>
+            <div class="chart-title">Radiology Orders by Disposition</div>
+            <div class="chart-sub">How often you ordered imaging — split by patients who were admitted vs discharged.</div>
           </div>
-          <button class="insight-btn" data-target="ins-icuRate" onclick="toggleInsight(this)">
+          <button class="insight-btn" data-target="ins-radByDispo" onclick="toggleInsight(this)">
+            <span class="sev-dot sev-neutral"></span>Insights
+            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+        </div>
+        <div class="chart-wrap" style="height:230px"><canvas id="radByDispo"></canvas></div>
+        <div class="insight-drawer" id="ins-radByDispo">
+          <div class="insight-inner" id="ins-content-radByDispo">
+            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-header-text">
+            <div class="chart-title">Lab Orders by Disposition</div>
+            <div class="chart-sub">Lab ordering rate split by admitted vs discharged patients.</div>
+          </div>
+          <button class="insight-btn" data-target="ins-labByDispo" onclick="toggleInsight(this)">
             <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
         </div>
         <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:#dc2626"></div>You</div>
-          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You (Admitted)</div>
+          <div class="legend-item"><div class="legend-line" style="background:#86efac"></div>Peers (Admitted)</div>
+          <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div>You (Discharged)</div>
+          <div class="legend-item"><div class="legend-line" style="background:#fcd34d"></div>Peers (Discharged)</div>
         </div>
-        <div class="chart-wrap"><canvas id="icuRate"></canvas></div>
-        <div class="insight-drawer" id="ins-icuRate">
-          <div class="insight-inner" id="ins-content-icuRate">
+        <div class="chart-wrap"><canvas id="labByDispo"></canvas></div>
+        <div class="insight-drawer" id="ins-labByDispo">
+          <div class="insight-inner" id="ins-content-labByDispo">
             <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
           </div>
         </div>
@@ -637,13 +659,17 @@
       <div class="chart-card">
         <div class="card-header">
           <div class="card-header-text">
-            <div class="chart-title">Patients Seen Per Month</div>
-            <div class="chart-sub">Total patients you were the first attending on.</div>
+            <div class="chart-title">Patients Seen &amp; Shifts Per Month</div>
+            <div class="chart-sub">Total patients (line, left axis) vs number of shifts worked (bars, right axis).</div>
           </div>
           <button class="insight-btn" data-target="ins-volume" onclick="toggleInsight(this)">
             <span class="sev-dot sev-neutral"></span>Insights
             <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>Patients (left)</div>
+          <div class="legend-item"><div class="legend-line" style="background:#cbd5e1;width:12px;height:12px;border-radius:2px;margin-right:4px;"></div>Shifts (right)</div>
         </div>
         <div class="chart-wrap"><canvas id="volume"></canvas></div>
         <div class="insight-drawer" id="ins-volume">
@@ -652,6 +678,8 @@
           </div>
         </div>
       </div>
+
+
 
       <div class="chart-card">
         <div class="card-header">
@@ -677,29 +705,6 @@
         </div>
       </div>
 
-      <div class="chart-card">
-        <div class="card-header">
-          <div class="card-header-text">
-            <div class="chart-title">Discharge Rate (%)</div>
-            <div class="chart-sub">What percent of your patients went home (not admitted). Higher is generally better for throughput.</div>
-          </div>
-          <button class="insight-btn" data-target="ins-dischargeRate" onclick="toggleInsight(this)">
-            <span class="sev-dot sev-neutral"></span>Insights
-            <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          </button>
-        </div>
-        <div class="legend">
-          <div class="legend-item"><div class="legend-line" style="background:#16a34a"></div>You</div>
-          <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
-          <div class="legend-item"><div class="legend-line" style="background:#16a34a;border-top:2px dashed #16a34a;height:0;width:18px"></div>Your Goal</div>
-        </div>
-        <div class="chart-wrap"><canvas id="dischargeRate"></canvas></div>
-        <div class="insight-drawer" id="ins-dischargeRate">
-          <div class="insight-inner" id="ins-content-dischargeRate">
-            <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
-          </div>
-        </div>
-      </div>
 
       <div class="chart-card">
         <div class="card-header">
@@ -722,28 +727,36 @@
 
     </div>
 
-    <!-- PERCENTILE TABLE -->
+    <!-- SHIFT PERFORMANCE INSIGHTS -->
+    {% if selected and selected.shift_data %}
     <div class="chart-card" style="margin-top:20px;">
       <div class="card-header">
         <div class="card-header-text">
-          <div class="chart-title">Full Ranking Summary — All Metrics</div>
-          <div class="chart-sub">Where you stand vs peers each month. Green = better than most peers. Red = worse than most peers.</div>
+          <div class="chart-title">Shift Performance — {{ selected.month_label }}</div>
+          <div class="chart-sub">Patients per hour by shift type vs peer average. Only shifts with your data are shown in blue.</div>
         </div>
-        <button class="insight-btn" data-target="ins-pctTable" onclick="toggleInsight(this)">
-          <span class="sev-dot sev-neutral"></span>Key Points
-          <span class="chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        </button>
       </div>
-      <table class="pct-table" style="margin-top:16px;">
-        <thead><tr><th>Metric</th>{% for m in month_list %}<th>{{ m.label.split(' ')[0] }}</th>{% endfor %}</tr></thead>
-        <tbody id="pctTableBody"></tbody>
-      </table>
-      <div class="insight-drawer" id="ins-pctTable">
-        <div class="insight-inner" id="ins-content-pctTable">
-          <p style="color:#64748b;font-size:13px;padding:8px 0;">Click to load insights...</p>
+      <div class="legend" style="margin-top:12px;">
+        <div class="legend-item"><div class="legend-line" style="background:#2563eb"></div>You</div>
+        <div class="legend-item"><div class="legend-line" style="background:#94a3b8"></div>Peers</div>
+      </div>
+      <div class="chart-wrap" style="height:300px;margin-top:8px;">
+        <canvas id="shiftChart"></canvas>
+      </div>
+      <div id="shiftInsights" style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;"></div>
+      <div id="shiftTrendWrap" style="display:none;">
+        <div class="chart-title" style="margin-top:24px;margin-bottom:8px;font-size:13px;color:var(--muted);">Trend Over Time — Patients Per Hour by Shift</div>
+        <div class="chart-wrap" style="height:260px;">
+          <canvas id="shiftTrendChart"></canvas>
         </div>
       </div>
     </div>
+    {% else %}
+    <div class="chart-card" style="margin-top:20px;">
+      <div class="chart-title">Shift Performance</div>
+      <p style="color:#64748b;font-size:13px;padding:16px 0;">No shift data available — upload a PDF to see shift breakdown.</p>
+    </div>
+    {% endif %}
   </section>
 
   <!-- BILLING -->
@@ -822,21 +835,7 @@ Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
 Chart.defaults.font.size = 12;
 
 const gc = 'rgba(0,0,0,0.07)';
-const tip = {
-  backgroundColor:'#1e293b', borderColor:'rgba(37,99,235,0.25)', borderWidth:1,
-  titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:11, cornerRadius:7,
-  callbacks: {
-    afterBody: function(items) {
-      if (!items.length) return '';
-      const chartKey = items[0].chart.canvas.id;
-      const nk = typeof noteKey === 'function' ? noteKey(chartKey, items[0].dataIndex) : null;
-      if (nk && typeof _chartNotes !== 'undefined' && _chartNotes[nk.key]) {
-        return '\n📝 ' + _chartNotes[nk.key].text;
-      }
-      return '';
-    }
-  }
-};
+const tip = { backgroundColor:'#1e293b', borderColor:'rgba(37,99,235,0.25)', borderWidth:1, titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:11, cornerRadius:7 };
 
 function baseOpts(yLabel='', beginZero=false) {
   return {
@@ -888,31 +887,47 @@ if (D.dischargeLOS) line('dischargeLOS', [ds('You',D.dischargeLOS.me,'#2563eb'),
 if (D.admitLOS) line('admitLOS', [ds('You',D.admitLOS.me,'#dc2626'), ds('Peers',D.admitLOS.peers,'#94a3b8',true,false)], {y:'Hours'});
 if (D.bedRequest) line('bedRequest', [ds('You',D.bedRequest.me,'#7c3aed'), ds('Peers',D.bedRequest.peers,'#94a3b8',true,false)], {y:'Minutes'});
 if (D.admissionRate) line('admissionRate', [ds('You',D.admissionRate.me,'#d97706'), ds('Peers',D.admissionRate.peers,'#94a3b8',true,false)], {y:'%', z:true});
-
-// Radiology by disposition — grouped bar
-if (D.radByDispo) {
-  charts['radByDispo'] = new Chart(document.getElementById('radByDispo').getContext('2d'), {
+if (D.dischargeRate) line('dischargeRate', [ds('You',D.dischargeRate.me,'#16a34a'), ds('Peers',D.dischargeRate.peers,'#94a3b8',true,false)], {y:'%'});
+if (D.icuRate) {
+  charts['icuRate'] = new Chart(document.getElementById('icuRate').getContext('2d'), {
     type:'bar',
     data:{ labels:S, datasets:[
-      { label:'You (Admitted)', data:D.radByDispo.admitMe, backgroundColor:'rgba(37,99,235,0.75)', borderRadius:3 },
-      { label:'Peers (Admitted)', data:D.radByDispo.admitPeers, backgroundColor:'rgba(37,99,235,0.25)', borderRadius:3 },
-      { label:'You (Discharged)', data:D.radByDispo.discMe, backgroundColor:'rgba(220,38,38,0.65)', borderRadius:3 },
-      { label:'Peers (Discharged)', data:D.radByDispo.discPeers, backgroundColor:'rgba(220,38,38,0.2)', borderRadius:3 },
+      { label:'You', data:D.icuRate.me, backgroundColor:D.icuRate.me.map(v=>v>0?'rgba(220,38,38,0.7)':'rgba(22,163,74,0.6)'), borderRadius:5 },
+      { label:'Peers avg', data:D.icuRate.peers, backgroundColor:'rgba(148,163,184,0.4)', borderRadius:5 },
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{ legend:{display:true, labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
+      plugins:{ legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
       scales:{
         x:{grid:{color:gc}},
         y:{beginAtZero:true, grid:{color:gc}, ticks:{color:'#64748b',callback:v=>v+'%'},
-           title:{display:true,text:'% with Imaging',color:'#64748b',font:{size:11}}}
+           title:{display:true,text:'% of Patients',color:'#64748b',font:{size:11}}}
       }
     }
   });
 }
 
-if (D.labOrders) line('labOrders', [ds('You',D.labOrders.me,'#16a34a'), ds('Peers',D.labOrders.peers,'#94a3b8',true,false)], {y:'%'});
+// Radiology by disposition — line chart
+if (D.radByDispo) {
+  charts['radByDispo'] = new Chart(document.getElementById('radByDispo').getContext('2d'), {
+    type:'line',
+    data:{ labels:S, datasets:[
+      ds('You (Admitted)',   D.radByDispo.admitMe,    '#2563eb'),
+      ds('Peers (Admitted)',  D.radByDispo.admitPeers, '#93c5fd', true, false),
+      ds('You (Discharged)', D.radByDispo.discMe,     '#dc2626'),
+      ds('Peers (Discharged)',D.radByDispo.discPeers, '#fca5a5', true, false),
+    ]},
+    options: baseOpts('%', true),
+  });
+}
+
+if (D.labByDispo) line('labByDispo', [
+  ds('You (Admitted)',    D.labByDispo.admitMe,    '#16a34a'),
+  ds('Peers (Admitted)',  D.labByDispo.admitPeers, '#86efac', true, false),
+  ds('You (Discharged)',  D.labByDispo.discMe,     '#f59e0b'),
+  ds('Peers (Discharged)',D.labByDispo.discPeers,  '#fcd34d', true, false),
+], {y:'%'});
 
 // --- SAFETY ---
 if (D.returns72) {
@@ -937,44 +952,42 @@ if (D.readmits72) {
   });
 }
 
-if (D.icuRate) {
-  charts['icuRate'] = new Chart(document.getElementById('icuRate').getContext('2d'), {
-    type:'bar',
-    data:{ labels:S, datasets:[
-      { label:'You', data:D.icuRate.me, backgroundColor:D.icuRate.me.map(v=>v>0?'rgba(220,38,38,0.7)':'rgba(22,163,74,0.6)'), borderRadius:5 },
-      { label:'Peers avg', data:D.icuRate.peers, backgroundColor:'rgba(148,163,184,0.4)', borderRadius:5 },
-    ]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{ legend:{display:true,labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
-      scales:{
-        x:{grid:{color:gc}},
-        y:{beginAtZero:true, grid:{color:gc}, ticks:{color:'#64748b',callback:v=>v+'%'},
-           title:{display:true,text:'% of Patients',color:'#64748b',font:{size:11}}}
-      }
-    }
-  });
-}
 
 // --- VOLUME ---
 if (D.patients) {
-  charts['volume'] = new Chart(document.getElementById('volume').getContext('2d'), {
-    type:'bar',
-    data:{ labels:S, datasets:[{
-      label:'Patients',data:D.patients.me,borderRadius:6,
-      backgroundColor:D.patients.me.map((_,i)=>i===selIdx?'rgba(220,38,38,0.6)':'rgba(37,99,235,0.55)'),
-    }]},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:tip},
-      scales:{x:{grid:{color:gc}},y:{beginAtZero:true,grid:{color:gc},title:{display:true,text:'Patients',color:'#64748b',font:{size:11}}}}
-    }
-  });
+  const shiftBars = D.patients.shifts || [];
+  const hasShifts = shiftBars.some(v => v != null);
+  if (!hasShifts) {
+    line('volume', [ds('Patients', D.patients.me, '#2563eb')], {y:'Patients'});
+  } else {
+    charts['volume'] = new Chart(document.getElementById('volume').getContext('2d'), {
+      data: {
+        labels: S,
+        datasets: [
+          { type:'line', label:'Patients', data:D.patients.me, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,0.08)',
+            borderWidth:2, pointRadius:4, pointBackgroundColor:'#2563eb', tension:0.3, fill:true, yAxisID:'yPts' },
+          { type:'bar', label:'Shifts', data:shiftBars, backgroundColor:'rgba(148,163,184,0.45)',
+            borderRadius:3, yAxisID:'yShifts' },
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index', intersect:false},
+        plugins:{ legend:{display:false}, tooltip:tip },
+        scales:{
+          x:{ grid:{color:gc}, ticks:{color:'#64748b',font:{size:11}} },
+          yPts:{ position:'left', beginAtZero:true, grid:{color:gc},
+                 ticks:{color:'#64748b'}, title:{display:true,text:'Patients',color:'#64748b',font:{size:11}} },
+          yShifts:{ position:'right', beginAtZero:true, grid:{display:false},
+                    ticks:{color:'#94a3b8',stepSize:1}, title:{display:true,text:'Shifts',color:'#94a3b8',font:{size:11}} },
+        }
+      }
+    });
+  }
 }
 
 if (D.ptsPerHour) line('ptsPerHour', [ds('You',D.ptsPerHour.me,'#2563eb'), ds('Peers',D.ptsPerHour.peers,'#94a3b8',true,false)], {y:'Pts/Hr'});
-if (D.dischargeRate) line('dischargeRate', [ds('You',D.dischargeRate.me,'#16a34a'), ds('Peers',D.dischargeRate.peers,'#94a3b8',true,false)], {y:'%'});
+
 
 if (D.esi) {
   charts['esiChart'] = new Chart(document.getElementById('esiChart').getContext('2d'), {
@@ -1024,39 +1037,147 @@ if (bTotal > 0) {
 }
 
 // ============================================================
-// PERCENTILE TABLE
+// SHIFT PERFORMANCE INSIGHTS
 // ============================================================
-const pctRows = [];
-if (D.dischargeLOS && D.dischargeLOS.pctile) pctRows.push({label:'Discharge Time',   data:D.dischargeLOS.pctile,   lowerBetter:true});
-if (D.admitLOS && D.admitLOS.pctile) pctRows.push({label:'Admit Wait Time',  data:D.admitLOS.pctile,       lowerBetter:true});
-if (D.bedRequest && D.bedRequest.pctile) pctRows.push({label:'Bed Request Time', data:D.bedRequest.pctile,     lowerBetter:true});
-if (D.admissionRate && D.admissionRate.pctile) pctRows.push({label:'Admission Rate',   data:D.admissionRate.pctile,  lowerBetter:false});
-if (D.returns72 && D.returns72.pctile) pctRows.push({label:'72-Hr Returns',    data:D.returns72.pctile,      lowerBetter:true});
-if (D.readmits72 && D.readmits72.pctile) pctRows.push({label:'72-Hr Readmits',   data:D.readmits72.pctile,     lowerBetter:true});
-if (D.radOrders && D.radOrders.pctile) pctRows.push({label:'Radiology Orders', data:D.radOrders.pctile,      lowerBetter:false});
-if (D.labOrders && D.labOrders.pctile) pctRows.push({label:'Lab Orders',       data:D.labOrders.pctile,      lowerBetter:false});
-if (D.ptsPerHour && D.ptsPerHour.pctile) pctRows.push({label:'Patients/Hour',    data:D.ptsPerHour.pctile,     lowerBetter:false});
-if (D.dischargeRate && D.dischargeRate.pctile) pctRows.push({label:'Discharge Rate',   data:D.dischargeRate.pctile,  lowerBetter:false});
+{% if selected and selected.shift_data %}
+(function() {
+  const shiftData = {{ selected.shift_data | tojson }};
+  if (!shiftData.length || !document.getElementById('shiftChart')) return;
 
-function pctColor(v, lb) {
-  if(v===null) return '#64748b';
-  const good = lb ? v<33 : v>66;
-  const bad  = lb ? v>66 : v<33;
-  return good ? '#16a34a' : bad ? '#dc2626' : '#d97706';
-}
-
-const tbody = document.getElementById('pctTableBody');
-pctRows.forEach(row => {
-  const tr = document.createElement('tr');
-  let h = `<td style="font-weight:600;color:#1e293b;">${row.label}</td>`;
-  row.data.forEach(v => {
-    const c = pctColor(v, row.lowerBetter);
-    const bg = c==='#16a34a'?'#dcfce7':c==='#dc2626'?'#fee2e2':'#fef9c3';
-    h += `<td style="color:${c};font-weight:700;background:${bg};border-radius:5px;">${v===null?'—':Math.round(v)+'th'}</td>`;
+  // Chart
+  new Chart(document.getElementById('shiftChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: shiftData.map(s => s.shift),
+      datasets: [
+        { label:'You',   data:shiftData.map(s => s.me),    backgroundColor:'rgba(37,99,235,0.75)', borderRadius:4 },
+        { label:'Peers', data:shiftData.map(s => s.peers), backgroundColor:'rgba(148,163,184,0.55)', borderRadius:4 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{display:true, labels:{color:'#64748b',boxWidth:12,font:{size:11}}}, tooltip:tip },
+      scales:{
+        x:{grid:{color:gc}, ticks:{color:'#64748b',font:{size:11}}},
+        y:{beginAtZero:true, grid:{color:gc}, ticks:{color:'#64748b', callback:v=>v.toFixed(1)},
+           title:{display:true,text:'Pts/Hr',color:'#64748b',font:{size:11}}}
+      }
+    }
   });
-  tr.innerHTML = h;
-  tbody.appendChild(tr);
-});
+
+  // Insight pills
+  const worked = shiftData.filter(s => s.me != null);
+  if (!worked.length) return;
+
+  const above = worked.filter(s => s.peers != null && s.me > s.peers);
+  const below = worked.filter(s => s.peers != null && s.me <= s.peers);
+  const best  = worked.reduce((a,b) => b.me > a.me ? b : a, worked[0]);
+  const worst = worked.reduce((a,b) => b.me < a.me ? b : a, worked[0]);
+  const avgMe = worked.reduce((sum,s) => sum+s.me, 0) / worked.length;
+  const withPeers = worked.filter(s => s.peers != null);
+  const avgPeers = withPeers.length ? withPeers.reduce((sum,s) => sum+s.peers, 0)/withPeers.length : null;
+  const diff = avgPeers != null ? avgMe - avgPeers : null;
+
+  function pill(label, value, color, sub) {
+    return `<div style="background:var(--surface2);border-radius:8px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">${label}</div>
+      <div style="font-size:18px;font-weight:800;color:${color};">${value}</div>
+      ${sub ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  let html = '';
+
+  // Best shift
+  const bestPct = best.pctile != null ? ` · ${best.pctile}th %ile` : '';
+  html += pill('Top Shift', best.shift, '#2563eb', `${best.me.toFixed(2)} pts/hr${bestPct}`);
+
+  // Worst shift (only if different from best)
+  if (worked.length > 1) {
+    const worstPct = worst.pctile != null ? ` · ${worst.pctile}th %ile` : '';
+    html += pill('Lowest Shift', worst.shift, '#64748b', `${worst.me.toFixed(2)} pts/hr${worstPct}`);
+  }
+
+  // Above / below peers
+  if (above.length) {
+    html += pill('Above Peers', `${above.length} shift${above.length > 1 ? 's' : ''}`, '#16a34a', above.map(s=>s.shift).join(', '));
+  }
+  if (below.length) {
+    html += pill('Below Peers', `${below.length} shift${below.length > 1 ? 's' : ''}`, '#dc2626', below.map(s=>s.shift).join(', '));
+  }
+
+  // Overall vs peers
+  if (diff != null) {
+    const sign = diff >= 0 ? '+' : '';
+    const col = diff >= 0 ? '#16a34a' : '#dc2626';
+    html += pill('Avg vs Peers', `${sign}${diff.toFixed(2)} pts/hr`, col,
+      `You ${avgMe.toFixed(2)} · Peers ${avgPeers.toFixed(2)}`);
+  }
+
+  document.getElementById('shiftInsights').innerHTML = html;
+})();
+{% endif %}
+
+// ============================================================
+// SHIFT TREND OVER TIME
+// ============================================================
+(function() {
+  const shiftByMonth = (D && D.shiftByMonth) ? D.shiftByMonth : [];
+  const hasAny = shiftByMonth.some(arr => arr && arr.length > 0);
+  const trendWrap = document.getElementById('shiftTrendWrap');
+  const trendCanvas = document.getElementById('shiftTrendChart');
+  if (!hasAny || !trendWrap || !trendCanvas) return;
+
+  // Collect unique shift names (preserve insertion order, deduplicate)
+  const seenNames = new Set();
+  shiftByMonth.forEach(arr => (arr || []).forEach(s => seenNames.add(s.shift)));
+  const shiftNames = [...seenNames];
+  if (!shiftNames.length) return;
+
+  const palette = [
+    '#2563eb','#16a34a','#dc2626','#d97706','#7c3aed',
+    '#0891b2','#db2777','#65a30d','#ea580c','#0f766e'
+  ];
+
+  const datasets = shiftNames.map((name, i) => ({
+    label: name,
+    data: shiftByMonth.map(monthArr => {
+      const entry = (monthArr || []).find(s => s.shift === name);
+      return (entry && entry.me != null) ? entry.me : null;
+    }),
+    borderColor: palette[i % palette.length],
+    backgroundColor: palette[i % palette.length] + '20',
+    borderWidth: 2,
+    tension: 0.3,
+    spanGaps: true,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+  }));
+
+  trendWrap.style.display = '';
+  new Chart(trendCanvas.getContext('2d'), {
+    type: 'line',
+    data: { labels: S, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: '#64748b', boxWidth: 12, font: { size: 11 } } },
+        tooltip: tip,
+      },
+      scales: {
+        x: { grid: { color: gc }, ticks: { color: '#64748b', font: { size: 11 } } },
+        y: {
+          beginAtZero: false,
+          grid: { color: gc },
+          ticks: { color: '#64748b', callback: v => v.toFixed(1) },
+          title: { display: true, text: 'Pts/Hr', color: '#64748b', font: { size: 11 } }
+        }
+      }
+    }
+  });
+})();
 
 // ============================================================
 // INSIGHT TOGGLE (fetch-based)
@@ -1119,6 +1240,47 @@ function toggleInsight(btn) {
 }
 
 // ============================================================
+// KPI CARD → CHART CLICK NAVIGATION
+// ============================================================
+const kpiTargets = {
+  'kpi-patients':      'volume',
+  'kpi-ptsPerHour':    'ptsPerHour',
+  'kpi-returns72':     'returns72',
+  'kpi-readmits72':    'readmits72',
+  'kpi-dischargeLOS':  'dischargeLOS',
+  'kpi-admitLOS':      'admitLOS',
+  'kpi-admissionRate': 'dispositionRates',
+  'kpi-bedRequest':    'bedRequest',
+  'kpi-dischargeRate': 'dispositionRates',
+  'kpi-labOrders':     'labByDispo',
+  'kpi-radOrders':     'radByDispo',
+  'kpi-icuRate':       'dispositionRates',
+};
+
+Object.entries(kpiTargets).forEach(([cardId, canvasId]) => {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.setAttribute('title', 'Click to jump to chart');
+  card.addEventListener('click', () => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const chartCard = canvas.closest('.chart-card');
+    if (!chartCard) return;
+    const top = chartCard.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top, behavior: 'smooth' });
+    chartCard.classList.remove('flash');
+    void chartCard.offsetWidth;
+    chartCard.classList.add('flash');
+    setTimeout(() => chartCard.classList.remove('flash'), 1100);
+    const insightBtn = chartCard.querySelector('.insight-btn');
+    const drawer = insightBtn ? document.getElementById(insightBtn.getAttribute('data-target')) : null;
+    if (insightBtn && drawer && !drawer.classList.contains('open')) {
+      setTimeout(() => { toggleInsight(insightBtn); }, 500);
+    }
+  });
+});
+
+// ============================================================
 // PRELOAD ALL INSIGHTS (dot colors + KPI card colors + content ready on click)
 // ============================================================
 (function preloadInsights() {
@@ -1157,10 +1319,6 @@ function toggleInsight(btn) {
         const dot = btn.querySelector('.sev-dot');
         if (dot) dot.className = 'sev-dot ' + (sevClass[worst] || 'sev-neutral');
 
-        // Update KPI card color to match insight severity
-        const kpiId = chartToKpi[chartKey];
-        const kpiCard = kpiId ? document.getElementById(kpiId) : null;
-        if (kpiCard) kpiCard.style.setProperty('--color', sevColor[worst] || '#94a3b8');
       })
       .catch(() => {});
   });
@@ -1174,11 +1332,11 @@ const goalDefs = [
   {id:'readmits72',   label:'Readmit Rate (72-Hr)',         unit:'%',   dir:'lower',  current:{{ selected.readmits72_me or 0 }},  hint:'Lower is better · Peer avg: {{ selected.readmits72_peers or "—" }}%', chartId:'readmits72'},
   {id:'dischargeLOS', label:'Discharge Time',               unit:'hrs', dir:'lower',  current:{{ selected.discharge_los_me or 0 }}, hint:'Lower is better · Peer avg: {{ selected.discharge_los_peers or "—" }}h', chartId:'dischargeLOS'},
   {id:'admitLOS',     label:'Admitted Patient Wait Time',   unit:'hrs', dir:'lower',  current:{{ selected.admit_los_me or 0 }}, hint:'Lower is better · Peer avg: {{ selected.admit_los_peers or "—" }}h', chartId:'admitLOS'},
-  {id:'admissionRate',label:'Admission Rate',               unit:'%',   dir:'neutral',current:{{ selected.admission_rate_me or 0 }}, hint:'Set your personal target',          chartId:'admissionRate'},
+  {id:'admissionRate',label:'Admission Rate',               unit:'%',   dir:'neutral',current:{{ selected.admission_rate_me or 0 }}, hint:'Set your personal target',          chartId:'dispositionRates'},
   {id:'bedRequest',   label:'Time to Bed Request',          unit:'min', dir:'lower',  current:{{ selected.bed_request_me or 0 }},  hint:'Lower is better · Peer avg: {{ selected.bed_request_peers or "—" }}',  chartId:'bedRequest'},
   {id:'ptsPerHour',   label:'Patients Per Hour',            unit:'/hr', dir:'higher', current:{{ selected.pts_per_hour_me or 0 }}, hint:'Higher is better · Peer avg: {{ selected.pts_per_hour_peers or "—" }}',chartId:'ptsPerHour'},
-  {id:'dischargeRate',label:'Discharge Rate',               unit:'%',   dir:'higher', current:{{ selected.discharge_rate_me or 0 }},   hint:'Higher is better · Peer avg: {{ selected.discharge_rate_peers or "—" }}%', chartId:'dischargeRate'},
-  {id:'icuRate',      label:'ICU Admission Rate',           unit:'%',   dir:'lower',  current:{{ selected.icu_rate_me or 0 }},    hint:'Lower is better · Peer avg: {{ selected.icu_rate_peers or "—" }}%',chartId:'icuRate'},
+  {id:'dischargeRate',label:'Discharge Rate',               unit:'%',   dir:'higher', current:{{ selected.discharge_rate_me or 0 }},   hint:'Higher is better · Peer avg: {{ selected.discharge_rate_peers or "—" }}%', chartId:'dispositionRates'},
+  {id:'icuRate',      label:'ICU Admission Rate',           unit:'%',   dir:'lower',  current:{{ selected.icu_rate_me or 0 }},    hint:'Lower is better · Peer avg: {{ selected.icu_rate_peers or "—" }}%',chartId:'dispositionRates'},
 ];
 
 function loadGoals() {
@@ -1327,47 +1485,6 @@ function loadOverviewSummary() {
 loadOverviewSummary();
 
 // ============================================================
-// KPI CARD → CHART CLICK NAVIGATION
-// ============================================================
-const kpiTargets = {
-  'kpi-patients':      'volume',
-  'kpi-ptsPerHour':    'ptsPerHour',
-  'kpi-returns72':     'returns72',
-  'kpi-readmits72':    'readmits72',
-  'kpi-dischargeLOS':  'dischargeLOS',
-  'kpi-admitLOS':      'admitLOS',
-  'kpi-admissionRate': 'admissionRate',
-  'kpi-bedRequest':    'bedRequest',
-  'kpi-dischargeRate': 'dischargeRate',
-  'kpi-labOrders':     'labOrders',
-  'kpi-radOrders':     'radByDispo',
-  'kpi-icuRate':       'icuRate',
-};
-
-Object.entries(kpiTargets).forEach(([cardId, canvasId]) => {
-  const card = document.getElementById(cardId);
-  if (!card) return;
-  card.setAttribute('title', 'Click to jump to chart');
-  card.addEventListener('click', () => {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const chartCard = canvas.closest('.chart-card');
-    if (!chartCard) return;
-    const top = chartCard.getBoundingClientRect().top + window.scrollY - 80;
-    window.scrollTo({ top, behavior: 'smooth' });
-    chartCard.classList.remove('flash');
-    void chartCard.offsetWidth;
-    chartCard.classList.add('flash');
-    setTimeout(() => chartCard.classList.remove('flash'), 1100);
-    const insightBtn = chartCard.querySelector('.insight-btn');
-    const drawer = insightBtn ? document.getElementById(insightBtn.getAttribute('data-target')) : null;
-    if (insightBtn && drawer && !drawer.classList.contains('open')) {
-      setTimeout(() => { toggleInsight(insightBtn); }, 500);
-    }
-  });
-});
-
-// ============================================================
 // NAV SCROLL HIGHLIGHT
 // ============================================================
 const sections = document.querySelectorAll('section[id]');
@@ -1485,14 +1602,32 @@ function closeNoteModal() {
   document.getElementById('noteModal').classList.remove('open');
 }
 
-// Add click handlers to all line charts
+// Add click handlers and tooltip note display to all line charts
 Object.keys(charts).forEach(chartKey => {
   const chart = charts[chartKey];
   if (!chart || chart.config.type !== 'line') return;
-  chart.options.onClick = (evt) => {
-    const points = chart.getElementsAtEventForMode(evt, 'nearest', {intersect: true}, false);
+
+  // Canvas-level click listener — works reliably post-creation
+  chart.canvas.addEventListener('click', function(evt) {
+    const points = chart.getElementsAtEventForMode(evt, 'nearest', {intersect: false}, false);
     if (points.length > 0) {
       openNoteModal(chartKey, points[0].index);
+    }
+  });
+
+  // Give each chart its own tooltip config so callbacks aren't shared
+  const origTooltip = chart.options.plugins.tooltip;
+  chart.options.plugins.tooltip = {
+    ...origTooltip,
+    callbacks: {
+      afterBody: function(items) {
+        if (!items.length) return '';
+        const nk = noteKey(chartKey, items[0].dataIndex);
+        if (nk && _chartNotes[nk.key]) {
+          return '\n📝 ' + _chartNotes[nk.key].text;
+        }
+        return '';
+      }
     }
   };
   chart.update('none');
@@ -1500,7 +1635,7 @@ Object.keys(charts).forEach(chartKey => {
 </script>
 
 <!-- QI Note Modal -->
-<div id="noteModal" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);">
+<div id="noteModal" style="position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);">
   <div style="background:#fff;border-radius:12px;padding:24px;width:420px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
     <h3 id="noteModalTitle" style="font-size:16px;font-weight:700;margin-bottom:12px;">QI Note</h3>
     <textarea id="noteModalText" rows="4" placeholder="What changes did you make this month? What did you observe?"
@@ -1515,6 +1650,7 @@ Object.keys(charts).forEach(chartKey => {
   </div>
 </div>
 <style>
+  #noteModal { display:none; }
   #noteModal.open { display:flex; }
 </style>
 
